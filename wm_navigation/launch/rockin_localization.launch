@@ -1,0 +1,50 @@
+<launch>
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="use_sim_time" value="true"/>
+    <arg name="debug" value="false"/>
+    <arg name="world_name" value="$(find wm_navigation)/worlds/GrannyAnnie.world"/>
+  </include>
+
+
+  <arg name="robot_name" value="robot"/>
+  <param name="robot_description"
+        command="$(find xacro)/xacro.py '$(find wm_navigation)/robot/kobuki_hexagons_asus_xtion_pro.urdf.xacro'"/>
+  <node pkg="gazebo_ros" type="spawn_model" name="spawn_$(arg robot_name)"
+        args="-x 0.0 -y 0.0 -z 0.0 -Y 3.14159 -unpause -urdf -param robot_description -model $(arg robot_name)" respawn="false">
+
+  </node>
+
+
+
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher">
+    <param name="publish_frequency" type="double" value="30.0" />
+  </node>
+
+  <node pkg="tf" type="static_transform_publisher" name="map2odom" args="0 0 0 0 0 0 1 /map /odom 100" />
+  <node pkg="tf" type="static_transform_publisher" name="world2map" args="0 0 0 0 0 0 1 /world /map 100" />
+
+<node pkg="wm_navigation" type="wm_map_server_node" name="wm_map_server" args="/home/paco/catkin_ws/rockin.pcd">
+<!--<node pkg="wm_navigation" type="wm_map_server_node" name="wm_map_server" output="screen">-->
+		<!-- fixed map frame (set to 'map' if SLAM or localization running!) -->
+		<param name="frame_id" type="string" value="/map" />
+		<param name="mapping" type="boolean" value="false" />
+		<!-- data source to integrate (PointCloud2) -->
+		<remap from="cloud_in" to="/camera/depth/points" />
+
+	</node>
+
+
+ <node pkg="wm_navigation" type="wm_localization_node" name="wm_localization" output="screen"> <!-- launch-prefix="gdb -ex run -args"> -->
+  		<param name="frame_id" type="string" value="map" />
+  		<param name="pointcloud_min_z" type="double" value="0.2" />
+  		<param name="pointcloud_max_z" type="double" value="0.5" />
+
+  		<remap from="cloud_in" to="/camera/depth/points" />
+  	</node> 
+
+
+	<node pkg="rviz" type="rviz" output="screen"
+		name="rviz"
+		args="-d $(find wm_navigation)/rviz/rockin.rviz"/>
+
+</launch>
