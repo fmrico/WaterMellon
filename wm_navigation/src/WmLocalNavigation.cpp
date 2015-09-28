@@ -15,15 +15,15 @@ WmLocalNavigation::WmLocalNavigation(ros::NodeHandle private_nh_)
   m_pointcloudMinZ(0.2),
   m_pointcloudMaxZ(0.5),
   robot_radious(0.3),
-  max_w(0.2),
+  max_w(0.15),
   max_v(0.2),
   collision_area(1.0),
   m_worldFrameId("/map"), m_baseFrameId("base_footprint"),
   m_tfListener(),
-  last_perception(new pcl::PointCloud<pcl::PointXYZRGB>),
-  global_vector(new geometry_msgs::PoseStamped),
-  resultant_vector(new geometry_msgs::PoseStamped),
-  repulsive_vector(new geometry_msgs::PoseStamped),
+  //last_perception(new pcl::PointCloud<pcl::PointXYZRGB>),
+  global_vector(new geometry_msgs::TwistStamped),
+  resultant_vector(new geometry_msgs::TwistStamped),
+  //repulsive_vector(new geometry_msgs::PoseStamped),
   m_res(0.2)
 {
 	ros::NodeHandle private_nh(private_nh_);
@@ -33,18 +33,18 @@ WmLocalNavigation::WmLocalNavigation(ros::NodeHandle private_nh_)
 	private_nh.param("collision_area", collision_area, collision_area);
 
 
-	m_perceptSub = new message_filters::Subscriber<sensor_msgs::PointCloud2> (m_nh, "cloud_in", 5);
+	/*m_perceptSub = new message_filters::Subscriber<sensor_msgs::PointCloud2> (m_nh, "cloud_in", 5);
 	m_tfPerceptSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_perceptSub, m_tfListener, m_baseFrameId, 5);
 	m_tfPerceptSub->registerCallback(boost::bind(&WmLocalNavigation::perceptionCallback, this, _1));
+*/
+	goal_sub = m_nh.subscribe<geometry_msgs::TwistStamped>("/goal_vector", 1000, &WmLocalNavigation::gvectorCallback, this);
 
-	goal_sub = m_nh.subscribe<geometry_msgs::PoseStamped>("/goal_vector", 1000, &WmLocalNavigation::gvectorCallback, this);
-
-	repulsive_vector_pub = m_nh.advertise<geometry_msgs::PoseStamped>("/repulsive_vector", 1000);
+	//repulsive_vector_pub = m_nh.advertise<geometry_msgs::PoseStamped>("/repulsive_vector", 1000);
 	resultant_vector_pub = m_nh.advertise<geometry_msgs::PoseStamped>("/resultant_vector", 1000);
 
 	vel_pub = m_nh.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity", 1000);
-	if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
-		ros::console::notifyLoggerLevelsChanged();
+//	if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
+//		ros::console::notifyLoggerLevelsChanged();
 
 
 }
@@ -53,7 +53,7 @@ WmLocalNavigation::~WmLocalNavigation() {
 
 }
 
-
+/*
 void
 WmLocalNavigation::perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
 {
@@ -98,8 +98,9 @@ WmLocalNavigation::perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& 
 	return;
 }
 
+*/
 void
-WmLocalNavigation::gvectorCallback(const geometry_msgs::PoseStamped::ConstPtr& gvector_in)
+WmLocalNavigation::gvectorCallback(const geometry_msgs::TwistStamped::ConstPtr& gvector_in)
 {
 
 	ROS_DEBUG("Global Vector received");
@@ -115,6 +116,7 @@ WmLocalNavigation::step()
 	ros::WallTime startTime = ros::WallTime::now();
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 
+	/*
 	pcl::PointCloud<pcl::PointXYZRGB>::iterator it;
 
 	float r_x, r_y;
@@ -151,26 +153,30 @@ WmLocalNavigation::step()
 	r_x = r_x * 2.0;
 	r_y = r_y * 2.0;
 
+	 /*
 	double ax, ay;
 	double roll, pitch, yaw;
 	tf::Quaternion q(global_vector->pose.orientation.x, global_vector->pose.orientation.y,
 			global_vector->pose.orientation.z, global_vector->pose.orientation.w);
 	tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
 
-	ax = cos(yaw);
-	ay = sin(yaw);
+	global_vector->twist.angular.z
+
+	ax = cos(global_vector->twist.angular.z);
+	ay = sin(global_vector->twist.angular.z);
 
 	std::cerr<<"ATRACTIVE = ("<<ax<<", "<<ay<<")"<<std::endl;
 
 	double resx, resy;
 
-	resx = (ax + r_x)/2.0;
-	resy = (ay + r_y)/2.0;
+	resx = ax;//(ax + r_x)/2.0;
+	resy = ay;//(ay + r_y)/2.0;
 
 	std::cerr<<"RES = ("<<resx<<", "<<resy<<")"<<std::endl;
 
+	 */
 
-	tf::Quaternion qrep;
+	/*tf::Quaternion qrep;
 	qrep.setEuler(0.0, 0.0, atan2(r_y, r_x));
 	repulsive_vector->pose.position.x = 0.0f;
 	repulsive_vector->pose.position.y = 0.0f;
@@ -179,8 +185,8 @@ WmLocalNavigation::step()
 	repulsive_vector->pose.orientation.y = qrep.getY();
 	repulsive_vector->pose.orientation.z = qrep.getZ();
 	repulsive_vector->pose.orientation.w = qrep.getW();
-
-	tf::Quaternion qres;
+*/
+	/*tf::Quaternion qres;
 	qres.setEuler(0.0, 0.0, atan2(resy, resx));
 	resultant_vector->pose.position.x = 0.0f;
 	resultant_vector->pose.position.y = 0.0f;
@@ -191,13 +197,13 @@ WmLocalNavigation::step()
 	resultant_vector->pose.orientation.w = qres.getW();
 
 
-	std::cerr<<"=================================="<<std::endl;
-
 	if(!std::isnan(resy))
 	{
 		geometry_msgs::Twist vel;
 
-		if(fabs(atan2(resy, resx))>1.5)
+
+
+		if(fabs(atan2(resy, resx))>0.5)
 		{
 			vel.linear.x = 0.0;
 			vel.angular.z = atan2(resy, resx);
@@ -219,6 +225,38 @@ WmLocalNavigation::step()
 
 		vel_pub.publish(vel);
 	}
+
+	 */
+
+	geometry_msgs::Twist vel;
+	//vel = global_vector->twist;
+
+	if(fabs(global_vector->twist.angular.z) > 0.5)
+	{
+		vel.linear.x = 0.0;
+		vel.angular.z = global_vector->twist.angular.z;
+	}else
+	{
+		vel.linear.x = global_vector->twist.linear.x;
+		vel.angular.z = global_vector->twist.angular.z;
+	}
+
+	if(vel.angular.z>max_w)
+		vel.angular.z = max_w;
+	if(vel.angular.z<-max_w)
+		vel.angular.z = -max_w;
+	if(vel.linear.x > max_v)
+		vel.linear.x = max_v;
+	if(vel.linear.x < -max_v)
+		vel.linear.x = -max_v;
+
+	vel_pub.publish(vel);
+
+	//vel.linear.x = global_vector->twist.linear.x;
+	//vel. = global_vector->twist.linear.x;
+
+	ROS_DEBUG("LOCAL VEL = (%lf, %lf)", vel.linear.x, vel.angular.z);
+
 	ROS_DEBUG("LocalNavigation done (%f sec)", total_elapsed);
 
 	publish_all();
@@ -231,9 +269,10 @@ WmLocalNavigation::publish_all()
 {
 
 	publish_resultant_vector();
-	publish_repulsive_vector();
+	//publish_repulsive_vector();
 }
 
+/*
 void
 WmLocalNavigation::publish_repulsive_vector()
 {
@@ -242,7 +281,7 @@ WmLocalNavigation::publish_repulsive_vector()
 
 	repulsive_vector_pub.publish(repulsive_vector);
 
-}
+}*/
 void
 WmLocalNavigation::publish_resultant_vector()
 {

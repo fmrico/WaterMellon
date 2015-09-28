@@ -49,10 +49,10 @@ public:
 
       if (pcl::io::savePCDFileASCII<pcl::PointXYZRGB> (mapname, *pc) != -1)
       {
-        ROS_INFO("Map saved (%zu pts)", cloud->data.size());
+    	 ROS_INFO("Map saved (%zu pts)", cloud->data.size());
       }else
       {
-         	ROS_ERROR ("Couldn't write file %s", mapname.c_str());
+         ROS_ERROR ("Couldn't write file %s", mapname.c_str());
       }
 
     }

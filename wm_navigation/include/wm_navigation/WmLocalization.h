@@ -31,7 +31,6 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include "pcl/point_types_conversion.h"
-//#include <pcl/kdtree/kdtree_flann.h>
 
 #include <pcl/octree/octree_search.h>
 #include <pcl/octree/octree.h>
@@ -51,88 +50,45 @@
 //#include <random>
 
 #include <wm_navigation/Particle.h>
-
+#include <wm_navigation/Utilities.h>
 namespace wm_localization {
 
-inline double
-randn (double mu, double sigma)
-{
-  double U1, U2, W, mult;
-  static double X1, X2;
-  static int call = 0;
-
-  if (call == 1)
-    {
-      call = !call;
-      return (mu + sigma * (double) X2);
-    }
-
-  do
-    {
-      U1 = -1 + ((double) rand () / RAND_MAX) * 2;
-      U2 = -1 + ((double) rand () / RAND_MAX) * 2;
-      W = pow (U1, 2) + pow (U2, 2);
-    }
-  while (W >= 1 || W == 0);
-
-  mult = sqrt ((-2 * log (W)) / W);
-  X1 = U1 * mult;
-  X2 = U2 * mult;
-
-  call = !call;
-
-  return (mu + sigma * (double) X1);
-}
-
-inline double toRadians(double degrees){return degrees * (M_PI/180.0);}
-
-inline double normalizePi(double data)
-{
-  if (data < M_PI && data >= -M_PI) return data;
-  double ndata = data - ((int )(data / (M_PI*2.0)))*(M_PI*2.0);
-  while (ndata >= M_PI)
-  {
-    ndata -= (M_PI*2.0);
-  }
-  while (ndata < -M_PI)
-  {
-    ndata += (M_PI*2.0);
-  }
-  return ndata;
-}
 
 class WmLocalization {
 public:
 
 	WmLocalization(ros::NodeHandle private_nh_ = ros::NodeHandle("~"));
-	virtual ~WmLocalization();
+	~WmLocalization();
 
-	virtual void perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in);
-	virtual void mapCallback(const sensor_msgs::PointCloud2::ConstPtr& map_in);
-//	virtual void odomCB(const nav_msgs::Odometry::ConstPtr& msg);
+	void perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in);
+	void mapCallback(const sensor_msgs::PointCloud2::ConstPtr& map_in);
+	void setPosCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pos);
 
-	virtual void step();
 
-protected:
+	void step();
 
-	virtual void predict();
-	virtual void correct();
+private:
 
-	virtual void resetParticles();
-	virtual void resetParticleUniform(Particle& p);
-	virtual void resetParticleNear(Particle& p2reset, const Particle& pref);
+	void predict();
+	void correct();
 
-	virtual void updateParticle(Particle& p, const std::vector<pcl::PointXYZRGB>& testpoints);
-	virtual float doTestPcl(pcl::PointXYZRGB &searchPoint);
-	virtual void updatePos();
-	virtual void reseed();
-	virtual void normalize();
+	void resetParticles();
+	void resetParticleUniform(Particle& p);
+	void resetParticleNear(Particle& p2reset, const Particle& pref);
 
-	virtual void publishAll();
-	virtual void publishPerception(const ros::Time& rostime = ros::Time::now());
-	virtual void publishParticles(const ros::Time& rostime = ros::Time::now());
-	virtual void publishPose(const ros::Time& rostime = ros::Time::now());
-	virtual void publishPoseWithCov(const ros::Time& rostime = ros::Time::now());
+	void setInitPose(const geometry_msgs::Pose& init_coord);
+
+	void updateParticle(Particle& p, const std::vector<pcl::PointXYZRGB>& testpoints);
+	float doTestPcl(pcl::PointXYZRGB &searchPoint);
+	void updatePos();
+	void reseed();
+	void normalize();
+
+	void publishAll();
+	void publishPerception(const ros::Time& rostime = ros::Time::now());
+	void publishParticles(const ros::Time& rostime = ros::Time::now());
+	void publishPose(const ros::Time& rostime = ros::Time::now());
+	void publishPoseWithCov(const ros::Time& rostime = ros::Time::now());
 
 	bool validParticlePosition(float x, float y);
 
@@ -147,45 +103,46 @@ protected:
 	/* Test functions to remove end
 	/*******************************************************/
 
-	ros::NodeHandle m_nh;
+	ros::NodeHandle nh_;
 
-	tf::TransformListener m_tfListener;
-	tf::MessageFilter<sensor_msgs::PointCloud2>* m_tfPerceptSub;
-	tf::MessageFilter<sensor_msgs::PointCloud2>* m_tfMapSub;
-	message_filters::Subscriber<sensor_msgs::PointCloud2>* m_perceptSub;
-	message_filters::Subscriber<sensor_msgs::PointCloud2>* m_mapSub;
+	tf::TransformListener tfListener_;
+	tf::MessageFilter<sensor_msgs::PointCloud2>* tfPerceptSub_;
+	tf::MessageFilter<sensor_msgs::PointCloud2>* tfMapSub_;
+	message_filters::Subscriber<sensor_msgs::PointCloud2>* perceptSub_;
+	message_filters::Subscriber<sensor_msgs::PointCloud2>* mapSub_;
 
-	ros::Publisher perception_pub;
-	ros::Publisher particles_pub;
-	ros::Publisher pose_pub;
-	ros::Publisher posecov_pub;
+	ros::Publisher perception_pub_;
+	ros::Publisher particles_pub_;
+	ros::Publisher pose_pub_;
+	ros::Publisher posecov_pub_;
+	ros::Subscriber pose_sub_;
 
-	int m_numparticles_min;
-	int m_numparticles_max;
+	int numparticles_min_;
+	int numparticles_max_;
 
-	int m_correctpoints;
-	double m_res;
-	double m_odomerror;
-	double m_pointcloudMinZ;
-	double m_pointcloudMaxZ;
+	int correctpoints_;
+	double res_;
+	double odomerror_;
+	double pointcloudMinZ_;
+	double pointcloudMaxZ_;
 
-	bool doResetParticles;
+	bool doResetParticles_;
 
-	std::string m_worldFrameId;
-	std::string m_baseFrameId;
+	std::string worldFrameId_;
+	std::string baseFrameId_;
 
-	std::vector<Particle> particles;
-	geometry_msgs::PoseWithCovariance pose;
+	std::vector<Particle> particles_;
+	geometry_msgs::PoseWithCovariance pose_;
 
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr last_perception;
-	pcl::octree::OctreePointCloudSearch<pcl::PointXYZRGB>::Ptr map;
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr last_perception_;
+	pcl::octree::OctreePointCloudSearch<pcl::PointXYZRGB>::Ptr map_;
 
-	float map_max_x, map_min_x, map_max_y, map_min_y;
+	float map_max_x_, map_min_x_, map_max_y_, map_min_y_;
 
 	//std::default_random_engine generator;
 	//std::normal_distribution<float> *distribution;
 
-	tf::Transform last2odom;
+	tf::Transform last2odom_;
 	tf::Transform genNoise(tf::Transform &base);
 
 };

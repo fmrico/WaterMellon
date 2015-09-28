@@ -12,28 +12,28 @@
 class Particle {
 
 public:
-	Particle(): coord(), p(0.0) {};
+	Particle(): coord_(), p_(0.0) {};
 
 	Particle(const Particle& part) {
-		coord = part.coord;
-		p = part.p;
+		coord_ = part.coord_;
+		p_ = part.p_;
 	}
 
 	Particle& operator= (const Particle& part)
 	{
-		coord = part.coord;
-		p = part.p;
+		coord_ = part.coord_;
+		p_ = part.p_;
 
 		return *this;
 	}
 
 	bool operator<(const Particle& part) const
 	{
-		return p<part.p;
+		return p_<part.p_;
 	}
 
-	geometry_msgs::Pose coord;
-	float p;
+	geometry_msgs::Pose coord_;
+	float p_;
 
 };
 

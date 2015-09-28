@@ -54,7 +54,7 @@
 
 #include <costmap_2d/costmap_2d_ros.h>
 #include <costmap_2d/costmap_2d_publisher.h>
-#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/Twist.h>
 
 namespace wm_navigation {
@@ -66,26 +66,27 @@ public:
 	WmLocalNavigation(ros::NodeHandle private_nh_ = ros::NodeHandle("~"));
 	virtual ~WmLocalNavigation();
 
-	virtual void gvectorCallback(const geometry_msgs::PoseStamped::ConstPtr& gvector_in);
-	virtual void perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in);
+	virtual void gvectorCallback(const geometry_msgs::TwistStamped::ConstPtr& gvector_in);
+	//virtual void perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in);
 
 	virtual void step();
 
 private:
 
 	void publish_all();
-	void publish_repulsive_vector();
+	//void publish_repulsive_vector();
 	void publish_resultant_vector();
 
 	ros::NodeHandle m_nh;
 	tf::TransformListener m_tfListener;
-	tf::MessageFilter<sensor_msgs::PointCloud2>* m_tfPerceptSub;
-	message_filters::Subscriber<sensor_msgs::PointCloud2>* m_perceptSub;
+
+	//tf::MessageFilter<sensor_msgs::PointCloud2>* m_tfPerceptSub;
+	//message_filters::Subscriber<sensor_msgs::PointCloud2>* m_perceptSub;
 
 	ros::Subscriber goal_sub;
 	ros::Publisher vel_pub;
 
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr last_perception;
+	//pcl::PointCloud<pcl::PointXYZRGB>::Ptr last_perception;
 
 	double m_pointcloudMinZ;
 	double m_pointcloudMaxZ;
@@ -98,12 +99,12 @@ private:
 	std::string m_worldFrameId;
 	std::string m_baseFrameId;
 
-	geometry_msgs::PoseStamped::Ptr global_vector;
-	geometry_msgs::PoseStamped::Ptr resultant_vector;
-	geometry_msgs::PoseStamped::Ptr repulsive_vector;
+	geometry_msgs::TwistStamped::Ptr global_vector;
+	geometry_msgs::TwistStamped::Ptr resultant_vector;
+	//geometry_msgs::PoseStamped::Ptr repulsive_vector;
 
 
-	ros::Publisher repulsive_vector_pub;
+	//ros::Publisher repulsive_vector_pub;
 	ros::Publisher resultant_vector_pub;
 
 	bool has_goal;

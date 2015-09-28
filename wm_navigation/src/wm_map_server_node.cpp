@@ -17,6 +17,8 @@ using namespace wm_map_server;
 int main(int argc, char **argv)
 {
 	ros::init(argc, argv, std::string("wm_map_server"));
+	ros::NodeHandle n;
+
 	std::string mapFilename("");
 
 	if (argc > 2 || (argc == 2 && std::string(argv[1]) == "-h")){
@@ -25,6 +27,8 @@ int main(int argc, char **argv)
 	}
 
 	WmMapServer server;
+
+	ros::Rate loop_rate(5);
 	ros::spinOnce();
 
 	if (argc == 2){
@@ -35,8 +39,16 @@ int main(int argc, char **argv)
 		}
 	}
 
+
 	try{
-		ros::spin();
+		while ( ros::ok())
+		{
+
+			server.step();
+
+			ros::spinOnce();
+			loop_rate.sleep();
+		}
 	}catch(std::runtime_error& e){
 		ROS_ERROR("wm_map_server exception: %s", e.what());
 		return -1;

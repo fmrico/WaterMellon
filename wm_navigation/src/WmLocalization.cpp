@@ -11,59 +11,96 @@ namespace wm_localization{
 
 
 WmLocalization::WmLocalization(ros::NodeHandle private_nh_)
-: m_nh(),
-  m_pointcloudMinZ(0.2),
-  m_pointcloudMaxZ(0.5),
-  m_res(0.05),
-  m_numparticles_min(30),
-  m_numparticles_max(300),
-  m_correctpoints(20),
-  m_odomerror(0.15),
-  m_worldFrameId("/map"), m_baseFrameId("base_footprint"),
-  last_perception(new pcl::PointCloud<pcl::PointXYZRGB>),
-  map(new pcl::octree::OctreePointCloudSearch<pcl::PointXYZRGB>(128.0f)),
-  map_max_x(1.0), map_min_x(0.0), map_max_y(1.0), map_min_y(0.0),
-  doResetParticles(true),
-  particles(m_numparticles_max)
+: nh_(),
+  pointcloudMinZ_(0.2),
+  pointcloudMaxZ_(0.5),
+  res_(0.05),
+  numparticles_min_(30),
+  numparticles_max_(300),
+  correctpoints_(20),
+  odomerror_(0.15),
+  doResetParticles_(true),
+  worldFrameId_("/map"), baseFrameId_("base_footprint"),
+  last_perception_(new pcl::PointCloud<pcl::PointXYZRGB>),
+  map_(new pcl::octree::OctreePointCloudSearch<pcl::PointXYZRGB>(128.0f)),
+  map_max_x_(1.0), map_min_x_(0.0), map_max_y_(1.0), map_min_y_(0.0),
+  particles_(numparticles_max_)
 {
+
 	ros::NodeHandle private_nh(private_nh_);
-	private_nh.param("frame_id", m_worldFrameId, m_worldFrameId);
-	private_nh.param("base_frame_id", m_baseFrameId, m_baseFrameId);
-	private_nh.param("pointcloud_min_z", m_pointcloudMinZ,m_pointcloudMinZ);
-	private_nh.param("pointcloud_max_z", m_pointcloudMaxZ,m_pointcloudMaxZ);
-	private_nh.param("resolution", m_res, m_res);
-	private_nh.param("numparticles_min", m_numparticles_min, m_numparticles_min);
-	private_nh.param("numparticles_max", m_numparticles_max, m_numparticles_max);
-	private_nh.param("correctpoints", m_correctpoints, m_correctpoints);
-	private_nh.param("odomerror", m_odomerror, m_odomerror);
+	private_nh.param("frame_id", worldFrameId_, worldFrameId_);
+	private_nh.param("base_frame_id", baseFrameId_, baseFrameId_);
+	private_nh.param("pointcloud_min_z", pointcloudMinZ_,pointcloudMinZ_);
+	private_nh.param("pointcloud_max_z", pointcloudMaxZ_,pointcloudMaxZ_);
+	private_nh.param("resolution", res_, res_);
+	private_nh.param("numparticles_min", numparticles_min_, numparticles_min_);
+	private_nh.param("numparticles_max", numparticles_max_, numparticles_max_);
+	private_nh.param("correctpoints", correctpoints_, correctpoints_);
+	private_nh.param("odomerror", odomerror_, odomerror_);
 
+	if(private_nh.hasParam("initial_pose_x") && private_nh.hasParam("initial_pose_y") && private_nh.hasParam("initial_pose_a"))
+	{
+		double initial_pose_a;
+		geometry_msgs::Pose init_coord;
 
-	m_perceptSub = new message_filters::Subscriber<sensor_msgs::PointCloud2> (m_nh, "cloud_in", 5);
-	m_tfPerceptSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_perceptSub, m_tfListener, m_baseFrameId, 5);
-	m_tfPerceptSub->registerCallback(boost::bind(&WmLocalization::perceptionCallback, this, _1));
+		private_nh.param("initial_pose_x", init_coord.position.x, init_coord.position.x);
+		private_nh.param("initial_pose_y", init_coord.position.y, init_coord.position.y);
+		private_nh.param("initial_pose_a", initial_pose_a, initial_pose_a);
 
-	m_mapSub = new message_filters::Subscriber<sensor_msgs::PointCloud2> (m_nh, "map", 5);
-	m_tfMapSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_mapSub, m_tfListener, m_worldFrameId, 5);
-	m_tfMapSub->registerCallback(boost::bind(&WmLocalization::mapCallback, this, _1));
+		tf::Quaternion q;
+		q.setEuler(0.0, 0.0, initial_pose_a);
 
-	perception_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/wm_perception", 1, true);
-	particles_pub = m_nh.advertise<geometry_msgs::PoseArray>("/wm_particles", 1, true);
-	pose_pub = m_nh.advertise<geometry_msgs::PoseStamped>("/wm_pose", 1, true);
-	posecov_pub = m_nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("/wm_pose_cov", 1, true);
+		init_coord.orientation.x = q.x();
+		init_coord.orientation.y = q.y();
+		init_coord.orientation.z = q.z();
+		init_coord.orientation.w = q.w();
 
-	testpoints_pub = m_nh.advertise<sensor_msgs::PointCloud2>("/wm_testpoints", 1, true);
+		setInitPose(init_coord);
+		doResetParticles_ = false;
+	}
+
+	perceptSub_ = new message_filters::Subscriber<sensor_msgs::PointCloud2> (nh_, "cloud_in", 5);
+	tfPerceptSub_ = new tf::MessageFilter<sensor_msgs::PointCloud2> (*perceptSub_, tfListener_, baseFrameId_, 5);
+	tfPerceptSub_->registerCallback(boost::bind(&WmLocalization::perceptionCallback, this, _1));
+
+	mapSub_ = new message_filters::Subscriber<sensor_msgs::PointCloud2> (nh_, "map", 5);
+	tfMapSub_ = new tf::MessageFilter<sensor_msgs::PointCloud2> (*mapSub_, tfListener_, worldFrameId_, 5);
+	tfMapSub_->registerCallback(boost::bind(&WmLocalization::mapCallback, this, _1));
+
+	pose_sub_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/initialpose", 1000, &WmLocalization::setPosCallback, this);
+
+	perception_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("/wm_perception", 1, true);
+	particles_pub_ = nh_.advertise<geometry_msgs::PoseArray>("/wm_particles", 1, true);
+	pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/wm_pose", 1, true);
+	posecov_pub_ = nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>("/wm_pose_cov", 1, true);
 
 
 	srand(time(0));
-
-	if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
-		ros::console::notifyLoggerLevelsChanged();
-
 
 }
 
 WmLocalization::~WmLocalization() {
 
+}
+
+void
+WmLocalization::setPosCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pos)
+{
+	setInitPose(pos->pose.pose);
+}
+
+void
+WmLocalization::setInitPose(const geometry_msgs::Pose& init_coord)
+{
+
+	ROS_INFO("Set Initial Pos to (%lf, %lf, %lf)", init_coord.position.x,  init_coord.position.y,  init_coord.orientation.z);
+	particles_.erase(particles_.begin()+numparticles_min_, particles_.end());
+
+	for(int i=0; i<particles_.size(); i++)
+	{
+		particles_[i].coord_ = init_coord;
+		particles_[i].p_ = 1.0;
+	}
 }
 
 void
@@ -78,14 +115,14 @@ WmLocalization::perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& clo
 
 	pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
 	sor.setInputCloud (cloud);
-	sor.setLeafSize (m_res, m_res, m_res);
+	sor.setLeafSize (res_, res_, res_);
 	sor.filter (*cloud_filtered);
 
-	pcl::fromPCLPointCloud2 (*cloud_filtered, *last_perception);
+	pcl::fromPCLPointCloud2 (*cloud_filtered, *last_perception_);
 
 	tf::StampedTransform sensorToBaseTf;
 	try {
-		m_tfListener.lookupTransform(m_baseFrameId, cloud_in->header.frame_id, cloud_in->header.stamp, sensorToBaseTf);
+		tfListener_.lookupTransform(baseFrameId_, cloud_in->header.frame_id, cloud_in->header.stamp, sensorToBaseTf);
 	} catch(tf::TransformException& ex){
 		ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
 		return;
@@ -96,17 +133,17 @@ WmLocalization::perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& clo
 
 	pcl::PassThrough<pcl::PointXYZRGB> pass;
 	pass.setFilterFieldName("z");
-	pass.setFilterLimits(m_pointcloudMinZ, m_pointcloudMaxZ);
+	pass.setFilterLimits(pointcloudMinZ_, pointcloudMaxZ_);
 
 	// directly transform to map frame:
-	pcl::transformPointCloud(*last_perception, *last_perception, sensorToBase);
+	pcl::transformPointCloud(*last_perception_, *last_perception_, sensorToBase);
 
 	// just filter height range:
-	pass.setInputCloud(last_perception->makeShared());
-	pass.filter(*last_perception);
+	pass.setInputCloud(last_perception_->makeShared());
+	pass.filter(*last_perception_);
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
-	//ROS_DEBUG("Pointcloud perception done (%zu pts total, %f sec)", last_perception->size(), total_elapsed);
+	//ROS_DEBUG("Pointcloud perception done (%zu pts total, %f sec)", last_perception_->size(), total_elapsed);
 
 	return;
 }
@@ -123,8 +160,8 @@ WmLocalization::mapCallback(const sensor_msgs::PointCloud2::ConstPtr& map_in)
 	pcl_conversions::toPCL(*map_in, *cloud);
 	pcl::fromPCLPointCloud2 (*cloud, *map_in_xyz);
 
-	map->setInputCloud (map_in_xyz);
-	map->addPointsFromInputCloud ();
+	map_->setInputCloud (map_in_xyz);
+	map_->addPointsFromInputCloud ();
 
 
 	ROS_DEBUG("Map Pointcloud %zu",  map_in_xyz->size());
@@ -132,25 +169,25 @@ WmLocalization::mapCallback(const sensor_msgs::PointCloud2::ConstPtr& map_in)
 	if(!map_in_xyz->empty())
 	{
 		ROS_INFO("Map Received; Unsubscribing from mapserver");
-		m_mapSub->unsubscribe();
+		mapSub_->unsubscribe();
 	}
 	pcl::PointCloud<pcl::PointXYZRGB>::iterator it;
 
-	map_max_x = map_max_y =FLT_MIN;
-	map_min_x = map_min_y =FLT_MIN;
+	map_max_x_ = map_max_y_ =FLT_MIN;
+	map_min_x_ = map_min_y_ =FLT_MIN;
 
 
 	for(it=map_in_xyz->begin(); it!=map_in_xyz->end(); ++it)
 	{
-		if(it->x < map_min_x) map_min_x = it->x;
-		if(it->y < map_min_y) map_min_y = it->y;
-		if(it->x > map_max_x) map_max_x = it->x;
-		if(it->y > map_max_y) map_max_y = it->y;
+		if(it->x < map_min_x_) map_min_x_ = it->x;
+		if(it->y < map_min_y_) map_min_y_ = it->y;
+		if(it->x > map_max_x_) map_max_x_ = it->x;
+		if(it->y > map_max_y_) map_max_y_ = it->y;
 	}
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 	ROS_DEBUG("Map reception [ %f -> %f, %f -> %f ]done (%zu pts total, %f sec)",
-			map_min_x, map_max_x, map_min_y, map_max_y, map_in_xyz->size(), total_elapsed);
+			map_min_x_, map_max_x_, map_min_y_, map_max_y_, map_in_xyz->size(), total_elapsed);
 
 	return;
 }
@@ -159,7 +196,7 @@ bool
 WmLocalization::validParticlePosition(float x, float y)
 {
 
-	if((map->getInputCloud()==NULL)||(map->getInputCloud()->empty()))
+	if((map_->getInputCloud()==NULL)||(map_->getInputCloud()->empty()))
 		return true;
 
 	bool infloor, inwall;
@@ -172,10 +209,10 @@ WmLocalization::validParticlePosition(float x, float y)
 	searchPointf.z = 0.0;
 	searchPointw.x = x;
 	searchPointw.y = y;
-	searchPointw.z = m_res*4.0f;
+	searchPointw.z = res_*4.0f;
 
-	infloor = map->radiusSearch(searchPointf, m_res*2.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance) > 0;
-	inwall = map->radiusSearch(searchPointw, m_res*2.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance) > 0;
+	infloor = map_->radiusSearch(searchPointf, res_*2.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance) > 0;
+	inwall = map_->radiusSearch(searchPointw, res_*2.0f, pointIdxRadiusSearch, pointRadiusSquaredDistance) > 0;
 
 	if(infloor && !inwall)
 		return true;
@@ -190,26 +227,26 @@ void
 WmLocalization::resetParticleUniform(Particle& p)
 {
 	float x, y, t;
-	p.p = 1.0 / ((float) particles.size());
+	p.p_ = 1.0 / ((float) particles_.size());
 
 	do {
-		x = ((float) rand() / (float) RAND_MAX) * (map_max_x-map_min_x) + map_min_x;
-		y = ((float) rand() / (float) RAND_MAX) * (map_max_y-map_min_y) + map_min_y;
+		x = ((float) rand() / (float) RAND_MAX) * (map_max_x_-map_min_x_) + map_min_x_;
+		y = ((float) rand() / (float) RAND_MAX) * (map_max_y_-map_min_y_) + map_min_y_;
 	} while (!validParticlePosition(x,y));
 
 	t = normalizePi(((float) rand() / (float) RAND_MAX) * 2.0 * M_PI);
 
-	p.coord.position.x = x;
-	p.coord.position.y = y;
-	p.coord.position.z = 0.0;
+	p.coord_.position.x = x;
+	p.coord_.position.y = y;
+	p.coord_.position.z = 0.0;
 
 	tf::Quaternion q;
 	q.setEuler(0.0, 0.0, t);
 
-	p.coord.orientation.x = q.x();
-	p.coord.orientation.y = q.y();
-	p.coord.orientation.z = q.z();
-	p.coord.orientation.w = q.w();
+	p.coord_.orientation.x = q.x();
+	p.coord_.orientation.y = q.y();
+	p.coord_.orientation.z = q.z();
+	p.coord_.orientation.w = q.w();
 }
 
 void
@@ -219,12 +256,12 @@ WmLocalization::resetParticleNear(Particle& p2reset, const Particle& pref)
 
 
 	//do {
-		x = pref.coord.position.x + randn(0.0, 0.05);//normalX(generator);
-		y = pref.coord.position.y + randn(0.0, 0.05);//normalY(generator);
+		x = pref.coord_.position.x + randn(0.0, 0.05);//normalX(generator);
+		y = pref.coord_.position.y + randn(0.0, 0.05);//normalY(generator);
 	//} while (!validParticlePosition(x,y));
 
-	tf::Quaternion q(pref.coord.orientation.x, pref.coord.orientation.y,
-			pref.coord.orientation.z, pref.coord.orientation.w);
+	tf::Quaternion q(pref.coord_.orientation.x, pref.coord_.orientation.y,
+			pref.coord_.orientation.z, pref.coord_.orientation.w);
 
 	double roll, pitch, yaw;
 	tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
@@ -232,7 +269,7 @@ WmLocalization::resetParticleNear(Particle& p2reset, const Particle& pref)
 
 	setParticle(p2reset, x, y, newt);
 
-	p2reset.p = 1.0/(float)particles.size();
+	p2reset.p_ = 1.0/(float)particles_.size();
 }
 
 void
@@ -240,8 +277,8 @@ WmLocalization::resetParticles()
 {
 	ros::WallTime startTime = ros::WallTime::now();
 
-	for (int i = 0; i < particles.size(); i++)
-		resetParticleUniform(particles[i]);
+	for (int i = 0; i < particles_.size(); i++)
+		resetParticleUniform(particles_[i]);
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 	//ROS_DEBUG("Particles reset took %f sec", total_elapsed);
@@ -259,7 +296,7 @@ WmLocalization::publishAll()
 void
 WmLocalization::publishPoseWithCov(const ros::Time& rostime)
 {
-	bool publishPose = posecov_pub.getNumSubscribers() > 0;
+	bool publishPose = posecov_pub_.getNumSubscribers() > 0;
 
 	if(publishPose)
 	{
@@ -267,16 +304,16 @@ WmLocalization::publishPoseWithCov(const ros::Time& rostime)
 
 		pose2send.header.frame_id = "/map";
 		pose2send.header.stamp = ros::Time::now();
-		pose2send.pose = pose;
+		pose2send.pose = pose_;
 
-		posecov_pub.publish(pose2send);
+		posecov_pub_.publish(pose2send);
 	}
 }
 
 void
 WmLocalization::publishPose(const ros::Time& rostime)
 {
-	bool publishPose = pose_pub.getNumSubscribers() > 0;
+	bool publishPose = pose_pub_.getNumSubscribers() > 0;
 
 	if(publishPose)
 	{
@@ -284,16 +321,16 @@ WmLocalization::publishPose(const ros::Time& rostime)
 
 		pose2send.header.frame_id = "/map";
 		pose2send.header.stamp = ros::Time::now();
-		pose2send.pose = pose.pose;
+		pose2send.pose = pose_.pose;
 
-		pose_pub.publish(pose2send);
+		pose_pub_.publish(pose2send);
 	}
 }
 
 void
 WmLocalization::publishParticles(const ros::Time& rostime)
 {
-	bool publishParticles = particles_pub.getNumSubscribers() > 0;
+	bool publishParticles = particles_pub_.getNumSubscribers() > 0;
 
 	if (publishParticles){
 		geometry_msgs::PoseArray paray;
@@ -301,32 +338,32 @@ WmLocalization::publishParticles(const ros::Time& rostime)
 		paray.header.frame_id = "/map";
 		paray.header.stamp = ros::Time::now();
 
-		for (int i = 0; i < particles.size(); i++)
-			paray.poses.push_back(particles[i].coord);
+		for (int i = 0; i < particles_.size(); i++)
+			paray.poses.push_back(particles_[i].coord_);
 
-		particles_pub.publish(paray);
+		particles_pub_.publish(paray);
 	}
 }
 
 void
 WmLocalization::publishPerception(const ros::Time& rostime)
 {
-	size_t perceptionSize = last_perception->size();
+	size_t perceptionSize = last_perception_->size();
 
 	if (perceptionSize <= 1){
 		ROS_WARN("Nothing to publish, perception is empty");
 		return;
 	}
 
-	bool publishPointCloud = perception_pub.getNumSubscribers() > 0;
+	bool publishPointCloud = perception_pub_.getNumSubscribers() > 0;
 
 	// finish pointcloud:
 	if (publishPointCloud){
 		sensor_msgs::PointCloud2 cloud;
-		pcl::toROSMsg (*last_perception, cloud);
-		cloud.header.frame_id = m_baseFrameId;
+		pcl::toROSMsg (*last_perception_, cloud);
+		cloud.header.frame_id = baseFrameId_;
 		cloud.header.stamp = rostime;
-		perception_pub.publish(cloud);
+		perception_pub_.publish(cloud);
 	}
 }
 
@@ -336,14 +373,14 @@ WmLocalization::step()
 {
 
 	ros::WallTime startTime = ros::WallTime::now();
-	if((map->getInputCloud()==NULL)||(map->getInputCloud()->empty()))
+	if((map_->getInputCloud()==NULL)||(map_->getInputCloud()->empty()))
 		return;
 
 
-	if(doResetParticles)
+	if(doResetParticles_)
 	{
 		resetParticles();
-		doResetParticles = false;
+		doResetParticles_ = false;
 	}
 
 
@@ -406,43 +443,43 @@ WmLocalization::predict()
 		tf::StampedTransform odom2bf;
 
 		try {
-			m_tfListener.lookupTransform("/odom", "base_footprint",
+			tfListener_.lookupTransform("/odom", "base_footprint",
 					ros::Time(0), odom2bf);
 
 		} catch (tf::TransformException & ex) {
 			ROS_WARN("%s", ex.what());
 		}
 
-		desp = last2odom * odom2bf;
+		desp = last2odom_ * odom2bf;
 
-		last2odom.setOrigin(odom2bf.inverse().getOrigin());
-		last2odom.setRotation(odom2bf.inverse().getRotation());
+		last2odom_.setOrigin(odom2bf.inverse().getOrigin());
+		last2odom_.setRotation(odom2bf.inverse().getRotation());
 
 
-		for (int i = 0; i < particles.size(); i++) {
+		for (int i = 0; i < particles_.size(); i++) {
 			tf::Transform part, parttf;
 
 			part.setOrigin(
-					tf::Vector3(particles[i].coord.position.x,
-							particles[i].coord.position.y,
-							particles[i].coord.position.z));
+					tf::Vector3(particles_[i].coord_.position.x,
+							particles_[i].coord_.position.y,
+							particles_[i].coord_.position.z));
 			part.setRotation(
-					tf::Quaternion(particles[i].coord.orientation.x,
-							particles[i].coord.orientation.y,
-							particles[i].coord.orientation.z,
-							particles[i].coord.orientation.w));
+					tf::Quaternion(particles_[i].coord_.orientation.x,
+							particles_[i].coord_.orientation.y,
+							particles_[i].coord_.orientation.z,
+							particles_[i].coord_.orientation.w));
 
 			tf::Transform noise = genNoise(desp);
 
 			parttf = part * desp * noise;
 
-			particles[i].coord.position.x = parttf.getOrigin().getX();
-			particles[i].coord.position.y = parttf.getOrigin().getY();
-			particles[i].coord.position.z = parttf.getOrigin().getZ();
-			particles[i].coord.orientation.x = parttf.getRotation().getX();
-			particles[i].coord.orientation.y = parttf.getRotation().getY();
-			particles[i].coord.orientation.z = parttf.getRotation().getZ();
-			particles[i].coord.orientation.w = parttf.getRotation().getW();
+			particles_[i].coord_.position.x = parttf.getOrigin().getX();
+			particles_[i].coord_.position.y = parttf.getOrigin().getY();
+			particles_[i].coord_.position.z = parttf.getOrigin().getZ();
+			particles_[i].coord_.orientation.x = parttf.getRotation().getX();
+			particles_[i].coord_.orientation.y = parttf.getRotation().getY();
+			particles_[i].coord_.orientation.z = parttf.getRotation().getZ();
+			particles_[i].coord_.orientation.w = parttf.getRotation().getW();
 
 		}
 }
@@ -463,7 +500,7 @@ WmLocalization::doTestPcl(pcl::PointXYZRGB &searchPoint)
 
 	int npoints;
 
-	npoints = map->radiusSearch(searchPoint, m_res, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+	npoints = map_->radiusSearch(searchPoint, res_, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
 	int inc=2;
 	for(int i=0; i<npoints; i=i+inc)
@@ -471,7 +508,7 @@ WmLocalization::doTestPcl(pcl::PointXYZRGB &searchPoint)
 		pcl::PointXYZHSV hsvA, hsvB;
 		float diffH, diffS, diffV;
 
-		pcl::PointXYZRGB point = map->getInputCloud()->points[pointIdxRadiusSearch[i]];
+		pcl::PointXYZRGB point = map_->getInputCloud()->points[pointIdxRadiusSearch[i]];
 
 		PointXYZRGBtoXYZHSV(searchPoint, hsvA);
 		PointXYZRGBtoXYZHSV(point, hsvB);
@@ -481,9 +518,9 @@ WmLocalization::doTestPcl(pcl::PointXYZRGB &searchPoint)
 		diffS = fabs(hsvA.s - hsvB.s);
 		diffV = fabs(hsvA.v - hsvB.v);
 
-		float vd = (m_res-sqrt(pointRadiusSquaredDistance[0]))/m_res;
+		float vd = (res_-sqrt(pointRadiusSquaredDistance[0]))/res_;
 
-		ret += (KO * vd + KH * (1.0 - diffH) + KS * (1.0 - diffS)+ KV * (1.0 - diffV))*((m_res-pointRadiusSquaredDistance[i])/m_res);
+		ret += (KO * vd + KH * (1.0 - diffH) + KS * (1.0 - diffS)+ KV * (1.0 - diffV))*((res_-pointRadiusSquaredDistance[i])/res_);
 
 	}
 
@@ -499,17 +536,17 @@ WmLocalization::updateParticle(Particle& p, const std::vector<pcl::PointXYZRGB>&
 {
 	tf::Transform W2H;
 
-	W2H.setOrigin(tf::Vector3(p.coord.position.x, p.coord.position.y, p.coord.position.z));
+	W2H.setOrigin(tf::Vector3(p.coord_.position.x, p.coord_.position.y, p.coord_.position.z));
 
-	W2H.setRotation( tf::Quaternion(p.coord.orientation.x, p.coord.orientation.y,
-			p.coord.orientation.z, p.coord.orientation.w));
+	W2H.setRotation( tf::Quaternion(p.coord_.orientation.x, p.coord_.orientation.y,
+			p.coord_.orientation.z, p.coord_.orientation.w));
 
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr testp(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 	float temp = 0.0;;
 	//p.p = 0.0f;
 
-	for (int i = 0; i < m_correctpoints; i++)
+	for (int i = 0; i < correctpoints_; i++)
 	{
 		pcl::PointXYZRGB testpoint = testpoints[i];
 
@@ -527,9 +564,9 @@ WmLocalization::updateParticle(Particle& p, const std::vector<pcl::PointXYZRGB>&
 		temp = temp + doTestPcl(testpoint);
 	}
 
-	p.p = (p.p + temp/m_correctpoints)/2.0f;
+	p.p_ = (p.p_ + temp/correctpoints_)/2.0f;
 
-	if(p.p>1.0) p.p=1.0;
+	if(p.p_>1.0) p.p_=1.0;
 
 }
 
@@ -538,20 +575,20 @@ WmLocalization::correct()
 {
 	ros::WallTime startTime = ros::WallTime::now();
 
-	if(last_perception->empty())
+	if(last_perception_->empty())
 		return;
 
 
 	//ToDo: Use keypoints instead of random ones
-	std::vector<pcl::PointXYZRGB> testpoints(m_correctpoints);
-	for (int i = 0; i < m_correctpoints; i++)
+	std::vector<pcl::PointXYZRGB> testpoints(correctpoints_);
+	for (int i = 0; i < correctpoints_; i++)
 	{
-		int idx = rand() % last_perception->size();
-		testpoints[i] = last_perception->at(idx);
+		int idx = rand() % last_perception_->size();
+		testpoints[i] = last_perception_->at(idx);
 	}
 
-	for(int j=0; j<particles.size(); j++)
-		updateParticle(particles[j], testpoints);
+	for(int j=0; j<particles_.size(); j++)
+		updateParticle(particles_[j], testpoints);
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 	ROS_DEBUG("Correction done (%f sec)", total_elapsed);
@@ -563,16 +600,16 @@ WmLocalization::normalize() {
 	float sum = 0.0;
 	float factor;
 
-	for (int i = 0; i < particles.size(); i++)
-		sum = sum + particles[i].p;
+	for (int i = 0; i < particles_.size(); i++)
+		sum = sum + particles_[i].p_;
 
 	if(sum>0.0)
 		factor = 1.0 / sum;
 	else
 		factor = 1.0;
 
-	for (int i = 0; i < particles.size(); i++)
-		particles[i].p = particles[i].p * factor;
+	for (int i = 0; i < particles_.size(); i++)
+		particles_[i].p_ = particles_[i].p_ * factor;
 
 }
 
@@ -580,37 +617,37 @@ WmLocalization::normalize() {
 void
 WmLocalization::reseed()
 {
-	std::sort(particles.begin(), particles.end());
-	std::reverse(particles.begin(), particles.end());
+	std::sort(particles_.begin(), particles_.end());
+	std::reverse(particles_.begin(), particles_.end());
 
-	float area_unc = sqrt(pose.covariance[0]) * sqrt(pose.covariance[1 * 6 + 1]);
+	float area_unc = sqrt(pose_.covariance[0]) * sqrt(pose_.covariance[1 * 6 + 1]);
 
 	if(area_unc>3.0)
 	{
-		int new_size = particles.size() * 1.5;
-		if(new_size>m_numparticles_max) new_size = m_numparticles_max;
+		int new_size = particles_.size() * 1.5;
+		if(new_size>numparticles_max_) new_size = numparticles_max_;
 
-		int add_p = new_size-particles.size();
+		int add_p = new_size-particles_.size();
 
 		for(int i=0; i<add_p;i++)
-			particles.push_back(Particle());
+			particles_.push_back(Particle());
 	}else if(area_unc<0.1)
 	{
-		int new_size = particles.size() / 1.5;
-		if(new_size<m_numparticles_min) new_size = m_numparticles_min;
-		int del_p = particles.size()-new_size;
+		int new_size = particles_.size() / 1.5;
+		if(new_size<numparticles_min_) new_size = numparticles_min_;
+		int del_p = particles_.size()-new_size;
 
-		particles.erase(particles.end()-del_p, particles.end());
+		particles_.erase(particles_.end()-del_p, particles_.end());
 	}
 
-	int idx_50 = particles.size()*50/100;
-	int idx_75 = particles.size()*75/100;
+	int idx_50 = particles_.size()*50/100;
+	int idx_75 = particles_.size()*75/100;
 
 	for(int i=idx_50; i<idx_75;i++)
-		resetParticleUniform(particles[i]);
+		resetParticleUniform(particles_[i]);
 
-	for(int i=idx_75; i<particles.size();i++)
-		resetParticleNear(particles[i], particles[0]);
+	for(int i=idx_75; i<particles_.size();i++)
+		resetParticleNear(particles_[i], particles_[0]);
 
 
 
@@ -619,7 +656,7 @@ WmLocalization::reseed()
 
 void WmLocalization::updatePos()
 {
-	pose.pose = particles[0].coord;
+	pose_.pose = particles_[0].coord_;
 
 	geometry_msgs::Pose error;
 
@@ -628,38 +665,38 @@ void WmLocalization::updatePos()
 
 	float p_mean = 0.0f;
 
-	int sgnificant_part = particles.size()*50/100;
+	int sgnificant_part = particles_.size()*50/100;
 	for(int i=0; i<sgnificant_part; i++)
 	{
 		error.position.x = error.position.x +
-				(particles[i].coord.position.x -particles[0].coord.position.x) *
-				(particles[i].coord.position.x -particles[0].coord.position.x);
+				(particles_[i].coord_.position.x -particles_[0].coord_.position.x) *
+				(particles_[i].coord_.position.x -particles_[0].coord_.position.x);
 
 		error.position.y = error.position.y +
-				(particles[i].coord.position.y -particles[0].coord.position.y) *
-				(particles[i].coord.position.y -particles[0].coord.position.y);
+				(particles_[i].coord_.position.y -particles_[0].coord_.position.y) *
+				(particles_[i].coord_.position.y -particles_[0].coord_.position.y);
 
 		error.position.z = error.position.z +
-				(particles[i].coord.position.z -particles[0].coord.position.z) *
-				(particles[i].coord.position.z -particles[0].coord.position.z);
+				(particles_[i].coord_.position.z -particles_[0].coord_.position.z) *
+				(particles_[i].coord_.position.z -particles_[0].coord_.position.z);
 
 		error.orientation.x = error.orientation.x +
-				(particles[i].coord.orientation.x -particles[0].coord.orientation.x) *
-				(particles[i].coord.orientation.x -particles[0].coord.orientation.x);
+				(particles_[i].coord_.orientation.x -particles_[0].coord_.orientation.x) *
+				(particles_[i].coord_.orientation.x -particles_[0].coord_.orientation.x);
 
 		error.orientation.y = error.orientation.y +
-				(particles[i].coord.orientation.y -particles[0].coord.orientation.y) *
-				(particles[i].coord.orientation.y -particles[0].coord.orientation.y);
+				(particles_[i].coord_.orientation.y -particles_[0].coord_.orientation.y) *
+				(particles_[i].coord_.orientation.y -particles_[0].coord_.orientation.y);
 
 		error.orientation.z = error.orientation.z +
-				(particles[i].coord.orientation.z -particles[0].coord.orientation.z) *
-				(particles[i].coord.orientation.z -particles[0].coord.orientation.z);
+				(particles_[i].coord_.orientation.z -particles_[0].coord_.orientation.z) *
+				(particles_[i].coord_.orientation.z -particles_[0].coord_.orientation.z);
 
 		error.orientation.w = error.orientation.w +
-				(particles[i].coord.orientation.w -particles[0].coord.orientation.w) *
-				(particles[i].coord.orientation.w -particles[0].coord.orientation.w);
+				(particles_[i].coord_.orientation.w -particles_[0].coord_.orientation.w) *
+				(particles_[i].coord_.orientation.w -particles_[0].coord_.orientation.w);
 
-		p_mean = p_mean + particles[i].p * particles[i].p;
+		p_mean = p_mean + particles_[i].p_ * particles_[i].p_;
 	}
 
 	error.position.x = error.position.x / sgnificant_part;
@@ -673,30 +710,30 @@ void WmLocalization::updatePos()
 	p_mean = sqrt (p_mean) / sgnificant_part;
 	//ToDo: Get the right covariance, including angles
 	for (int i = 0; i < 36; i++)
-			pose.covariance[i] = 0.0;
+			pose_.covariance[i] = 0.0;
 
-	pose.covariance[0] = error.position.x;
-	pose.covariance[1 * 6 + 1] =error.position.y;
-	pose.covariance[5 * 6 + 5] = error.position.z;
+	pose_.covariance[0] = error.position.x;
+	pose_.covariance[1 * 6 + 1] =error.position.y;
+	pose_.covariance[5 * 6 + 5] = error.position.z;
 
-	ROS_DEBUG("[%ld]\tp: %f\tstdvev x:%f\ty:%f\tz:%f", particles.size(), p_mean, error.position.x, error.position.y, error.position.z);
+	ROS_DEBUG("[%ld]\tp: %f\tstdvev x:%f\ty:%f\tz:%f", particles_.size(), p_mean, error.position.x, error.position.y, error.position.z);
 
 }
 
 void WmLocalization::setParticle(Particle &particle, float x, float y, float theta)
 {
 
-	particle.coord.position.x = x;
-	particle.coord.position.y = y;
-	particle.coord.position.z = 0.0;
+	particle.coord_.position.x = x;
+	particle.coord_.position.y = y;
+	particle.coord_.position.z = 0.0;
 
 	tf::Quaternion q;
 	q.setEuler(0.0, 0.0, theta);
 
-	particle.coord.orientation.x = q.x();
-	particle.coord.orientation.y = q.y();
-	particle.coord.orientation.z = q.z();
-	particle.coord.orientation.w = q.w();
+	particle.coord_.orientation.x = q.x();
+	particle.coord_.orientation.y = q.y();
+	particle.coord_.orientation.z = q.z();
+	particle.coord_.orientation.w = q.w();
 
 }
 

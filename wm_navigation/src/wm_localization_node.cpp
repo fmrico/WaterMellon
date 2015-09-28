@@ -17,21 +17,21 @@ int main(int argc, char **argv)
 	ros::init(argc, argv, std::string("wm_localization"));
 	ros::NodeHandle n;
 
-  ros::Rate loop_rate(5);
+	ros::Rate loop_rate(5);
 
-  WmLocalization wmlocalization;
+	WmLocalization wmlocalization;
 
-  try{
-	   while ( ros::ok())
-	   {
+	try{
+		while ( ros::ok())
+		{
 
-       wmlocalization.step();
+			wmlocalization.step();
 
-       ros::spinOnce();
-       loop_rate.sleep();
-     }
+			ros::spinOnce();
+			loop_rate.sleep();
+		}
 	}catch(std::runtime_error& e){
-		ROS_ERROR("wm_map_server exception: %s", e.what());
+		ROS_ERROR("wm_localization exception: %s", e.what());
 		return -1;
 	}
 
