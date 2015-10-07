@@ -125,6 +125,9 @@ private:
 	double odomerror_;
 	double pointcloudMinZ_;
 	double pointcloudMaxZ_;
+	double pointcloudMaxX_;
+	double pointcloudMaxTxy_;
+	double pointcloudMaxTxz_;
 
 	bool doResetParticles_;
 

@@ -14,6 +14,9 @@ WmMapServer::WmMapServer(ros::NodeHandle private_nh_)
 : nh_(),
   pointcloudMinZ_(-std::numeric_limits<double>::max()),
   pointcloudMaxZ_(std::numeric_limits<double>::max()),
+  pointcloudMaxX_(std::numeric_limits<double>::max()),
+  pointcloudMaxTxy_(M_PI),
+  pointcloudMaxTxz_(M_PI),
   res_(0.05),
   do_mapping_(true),
   worldFrameId_("/map"), baseFrameId_("/base_footprint"),
@@ -26,8 +29,13 @@ WmMapServer::WmMapServer(ros::NodeHandle private_nh_)
 	private_nh.param("base_frame_id", baseFrameId_, baseFrameId_);
 	private_nh.param("pointcloud_min_z", pointcloudMinZ_,pointcloudMinZ_);
 	private_nh.param("pointcloud_max_z", pointcloudMaxZ_,pointcloudMaxZ_);
+	private_nh.param("pointcloud_max_x", pointcloudMaxX_,pointcloudMaxX_);
+	private_nh.param("pointcloud_max_t_xy", pointcloudMaxTxy_,pointcloudMaxTxy_);
+	private_nh.param("pointcloud_max_t_xz", pointcloudMaxTxz_,pointcloudMaxTxz_);
 	private_nh.param("resolution", res_, res_);
 	private_nh.param("mapping", do_mapping_, do_mapping_);
+
+
 
 	if(do_mapping_)
 	{
@@ -49,6 +57,10 @@ WmMapServer::WmMapServer(ros::NodeHandle private_nh_)
 	origin_.orientation.w = 1.0;
 
 	octree_->setInputCloud(map_);
+
+	if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
+			ros::console::notifyLoggerLevelsChanged();
+
 
 }
 
@@ -132,7 +144,6 @@ WmMapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud
 	if(!do_mapping_)
 		return;
 
-
 	pcl::PCLPointCloud2::Ptr cloud (new pcl::PCLPointCloud2 ());
 	pcl::PCLPointCloud2::Ptr cloud_filtered (new pcl::PCLPointCloud2 ());
 
@@ -143,41 +154,72 @@ WmMapServer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud
 	sor.setLeafSize (res_, res_, res_);
 	sor.filter (*cloud_filtered);
 
+
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc(new pcl::PointCloud<pcl::PointXYZRGB>); // input cloud for filtering and ground-detection
 	pcl::fromPCLPointCloud2 (*cloud_filtered, *pc);
 
-	tf::StampedTransform sensorToWorldTf;
+
+	/*
+	 * Filter in Robot space
+	 */
+
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc_filtered(new pcl::PointCloud<pcl::PointXYZRGB>); // input cloud for filtering and ground-detection
+
+	tf::StampedTransform sensorToRobotTf;
+	Eigen::Matrix4f sensorToRobot;
 	try {
-		tfListener_.lookupTransform(worldFrameId_, cloud_in->header.frame_id, cloud_in->header.stamp, sensorToWorldTf);
+		tfListener_.lookupTransform(baseFrameId_, cloud_in->header.frame_id, cloud_in->header.stamp, sensorToRobotTf);
 	} catch(tf::TransformException& ex){
 		ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
 		return;
 	}
 
-	Eigen::Matrix4f sensorToWorld;
-	pcl_ros::transformAsMatrix(sensorToWorldTf, sensorToWorld);
+	pcl_ros::transformAsMatrix(sensorToRobotTf, sensorToRobot);
+	pcl::transformPointCloud(*pc, *pc, sensorToRobot);
 
-	pcl::PassThrough<pcl::PointXYZRGB> pass;
-	pass.setFilterFieldName("z");
-	pass.setFilterLimits(pointcloudMinZ_, pointcloudMaxZ_);
 
-	// directly transform to map frame:
-	pcl::transformPointCloud(*pc, *pc, sensorToWorld);
+	for(pcl::PointCloud<pcl::PointXYZRGB>::iterator it=pc->begin(); it!=pc->end(); ++it)
+	{
+		if(!std::isnan(it->x))
+		{
+			double thetaxy, thetaxz;
 
-	// just filter height range:
-	pass.setInputCloud(pc->makeShared());
-	pass.filter(*pc);
+			thetaxy = atan2(it->y, it->x);
+			thetaxz = atan2(it->z, it->x);
+
+			if(fabs(thetaxy)<pointcloudMaxTxy_ && fabs(thetaxz)<pointcloudMaxTxz_ &&
+					it->x < pointcloudMaxX_ &&
+					it->z > pointcloudMinZ_ && it->z < pointcloudMaxZ_)
+			pc_filtered->push_back(*it);
+		}
+	}
+
+	/*
+	 * Add to Map
+	 */
+	tf::StampedTransform RobotToWorldTf;
+	try {
+		tfListener_.lookupTransform(worldFrameId_, baseFrameId_, cloud_in->header.stamp, RobotToWorldTf);
+	} catch(tf::TransformException& ex){
+		ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
+		return;
+	}
+
+	Eigen::Matrix4f RobotToWorld;
+	pcl_ros::transformAsMatrix(RobotToWorldTf, RobotToWorld);
+	pcl::transformPointCloud(*pc_filtered, *pc_filtered, RobotToWorld);
 
 	int c=0;
 
 	bool newPoint = false;
-	for(pcl::PointCloud<pcl::PointXYZRGB>::iterator it=pc->begin(); it!=pc->end(); ++it)
-		if(validNewPoint(*it))
-		{
+	for(pcl::PointCloud<pcl::PointXYZRGB>::iterator it=pc_filtered->begin(); it!=pc_filtered->end(); ++it)
+	if(validNewPoint(*it))
+	{
 			map_->push_back(*it);
 			octree_->addPointToCloud (*it, map_);
 			c++;
-		}
+
+	}
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 	ROS_DEBUG("Pointcloud insertion in map done (%d new points, %zu pts total, %f sec)", c, map_->size(), total_elapsed);
@@ -226,6 +268,8 @@ void WmMapServer::publishMap(const ros::Time& rostime){
 		ROS_WARN("Nothing to publish, octree is empty");
 		return;
 	}
+
+	ROS_DEBUG("Map points %ld ", map_->size());
 
 	if (pointCloudPub_.getNumSubscribers() > 0){
 

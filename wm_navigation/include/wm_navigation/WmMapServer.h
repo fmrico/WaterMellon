@@ -75,6 +75,9 @@ private:
 
 	double pointcloudMinZ_;
 	double pointcloudMaxZ_;
+	double pointcloudMaxX_;
+	double pointcloudMaxTxy_;
+	double pointcloudMaxTxz_;
 	double res_;
 	bool do_mapping_;
 

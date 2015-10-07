@@ -12,8 +12,11 @@ namespace wm_localization{
 
 WmLocalization::WmLocalization(ros::NodeHandle private_nh_)
 : nh_(),
-  pointcloudMinZ_(0.2),
-  pointcloudMaxZ_(0.5),
+  pointcloudMinZ_(-std::numeric_limits<double>::max()),
+  pointcloudMaxZ_(std::numeric_limits<double>::max()),
+  pointcloudMaxX_(std::numeric_limits<double>::max()),
+  pointcloudMaxTxy_(M_PI),
+  pointcloudMaxTxz_(M_PI),
   res_(0.05),
   numparticles_min_(30),
   numparticles_max_(300),
@@ -32,6 +35,9 @@ WmLocalization::WmLocalization(ros::NodeHandle private_nh_)
 	private_nh.param("base_frame_id", baseFrameId_, baseFrameId_);
 	private_nh.param("pointcloud_min_z", pointcloudMinZ_,pointcloudMinZ_);
 	private_nh.param("pointcloud_max_z", pointcloudMaxZ_,pointcloudMaxZ_);
+	private_nh.param("pointcloud_max_x", pointcloudMaxX_,pointcloudMaxX_);
+	private_nh.param("pointcloud_max_t_xy", pointcloudMaxTxy_,pointcloudMaxTxy_);
+	private_nh.param("pointcloud_max_t_xz", pointcloudMaxTxz_,pointcloudMaxTxz_);
 	private_nh.param("resolution", res_, res_);
 	private_nh.param("numparticles_min", numparticles_min_, numparticles_min_);
 	private_nh.param("numparticles_max", numparticles_max_, numparticles_max_);
@@ -76,6 +82,8 @@ WmLocalization::WmLocalization(ros::NodeHandle private_nh_)
 
 
 	srand(time(0));
+	if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
+			ros::console::notifyLoggerLevelsChanged();
 
 }
 
@@ -107,6 +115,73 @@ void
 WmLocalization::perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
 {
 	ros::WallTime startTime = ros::WallTime::now();
+
+
+	pcl::PCLPointCloud2::Ptr cloud (new pcl::PCLPointCloud2 ());
+	pcl::PCLPointCloud2::Ptr cloud_filtered (new pcl::PCLPointCloud2 ());
+
+	pcl_conversions::toPCL(*cloud_in, *cloud);
+
+	pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
+	sor.setInputCloud (cloud);
+	sor.setLeafSize (res_, res_, res_);
+	sor.filter (*cloud_filtered);
+
+
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc(new pcl::PointCloud<pcl::PointXYZRGB>); // input cloud for filtering and ground-detection
+	pcl::fromPCLPointCloud2 (*cloud_filtered, *pc);
+
+
+	/*
+	 * Filter in Robot space
+	 */
+
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc_filtered(new pcl::PointCloud<pcl::PointXYZRGB>); // input cloud for filtering and ground-detection
+
+	tf::StampedTransform sensorToRobotTf;
+	Eigen::Matrix4f sensorToRobot;
+	try {
+		tfListener_.lookupTransform(baseFrameId_, cloud_in->header.frame_id, cloud_in->header.stamp, sensorToRobotTf);
+	} catch(tf::TransformException& ex){
+		ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
+		return;
+	}
+
+	pcl_ros::transformAsMatrix(sensorToRobotTf, sensorToRobot);
+	pcl::transformPointCloud(*pc, *pc, sensorToRobot);
+
+	last_perception_->clear();
+
+	for(pcl::PointCloud<pcl::PointXYZRGB>::iterator it=pc->begin(); it!=pc->end(); ++it)
+	{
+		if(!std::isnan(it->x))
+		{
+			double thetaxy, thetaxz;
+
+			thetaxy = atan2(it->y, it->x);
+			thetaxz = atan2(it->z, it->x);
+
+			if(fabs(thetaxy)<pointcloudMaxTxy_ && fabs(thetaxz)<pointcloudMaxTxz_ &&
+					it->x < pointcloudMaxX_ &&
+					it->z > pointcloudMinZ_ && it->z < pointcloudMaxZ_)
+				last_perception_->push_back(*it);
+		}
+	}
+
+
+
+
+	/*
+
+
+
+
+
+
+
+
+
+
 
 	pcl::PCLPointCloud2::Ptr cloud (new pcl::PCLPointCloud2 ());
 	pcl::PCLPointCloud2::Ptr cloud_filtered (new pcl::PCLPointCloud2 ());
@@ -141,7 +216,7 @@ WmLocalization::perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& clo
 	// just filter height range:
 	pass.setInputCloud(last_perception_->makeShared());
 	pass.filter(*last_perception_);
-
+*/
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 	//ROS_DEBUG("Pointcloud perception done (%zu pts total, %f sec)", last_perception_->size(), total_elapsed);
 
@@ -372,30 +447,42 @@ void
 WmLocalization::step()
 {
 
+	ROS_DEBUG("Step()");
 	ros::WallTime startTime = ros::WallTime::now();
 	if((map_->getInputCloud()==NULL)||(map_->getInputCloud()->empty()))
+	{
+		ROS_DEBUG("Doing nothing on this step");
 		return;
+	}
+
 
 
 	if(doResetParticles_)
 	{
+		ROS_DEBUG("Resetting");
 		resetParticles();
 		doResetParticles_ = false;
 	}
 
-
+	ROS_DEBUG("Predict");
 	predict();
+
+	ROS_DEBUG("Correct");
 	correct();
 
+	ROS_DEBUG("Reseed");
 	reseed();
 
+	ROS_DEBUG("Normlize");
 	normalize();
 
+	ROS_DEBUG("Updating Pos");
 	updatePos();
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 	ROS_DEBUG("Localization done (%f sec)", total_elapsed);
 
+	ROS_DEBUG("Publishing all");
 	publishAll();
 }
 
