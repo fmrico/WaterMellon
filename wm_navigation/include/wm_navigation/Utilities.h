@@ -10,6 +10,7 @@
 
 #include <math.h>
 
+namespace wm_navigation {
 inline double
 randn (double mu, double sigma)
 {
@@ -57,6 +58,28 @@ inline double normalizePi(double data)
   return ndata;
 }
 
+inline float distance(const geometry_msgs::Pose& p1, const geometry_msgs::Pose& p2)
+{
+	return sqrt((p1.position.x-p2.position.x)*(p1.position.x-p2.position.x)+
+			(p1.position.y-p2.position.y)*(p1.position.y-p2.position.y));
+}
 
+inline float angleZ(const geometry_msgs::Pose& p1, const geometry_msgs::Pose& p2)
+{
+	double ro1, ro2, pi1, pi2, ya1, ya2;
+	tf::Quaternion q1(p1.orientation.x,
+			p1.orientation.y,
+			p1.orientation.z,
+			p1.orientation.w);
+	tf::Quaternion q2(p2.orientation.x,
+			p2.orientation.y,
+			p2.orientation.z,
+			p2.orientation.w);
 
+	tf::Matrix3x3(q1).getRPY(ro1, pi1, ya1);
+	tf::Matrix3x3(q2).getRPY(ro2, pi2, ya2);
+
+	return normalizePi(ya1-ya2);
+}
+}
 #endif /* UTILITIES_H_ */

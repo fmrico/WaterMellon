@@ -58,9 +58,6 @@ WmMapServer::WmMapServer(ros::NodeHandle private_nh_)
 
 	octree_->setInputCloud(map_);
 
-	if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
-			ros::console::notifyLoggerLevelsChanged();
-
 
 }
 

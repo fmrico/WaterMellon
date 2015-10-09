@@ -7,7 +7,7 @@
 
 #include "wm_navigation/WmLocalization.h"
 
-namespace wm_localization{
+namespace wm_navigation{
 
 
 WmLocalization::WmLocalization(ros::NodeHandle private_nh_)
@@ -82,8 +82,6 @@ WmLocalization::WmLocalization(ros::NodeHandle private_nh_)
 
 
 	srand(time(0));
-	if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
-			ros::console::notifyLoggerLevelsChanged();
 
 }
 

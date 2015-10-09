@@ -5,6 +5,9 @@ project(wm_navigation)
 ##set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BUILD_TYPE Release)
 
+find_package(catkin REQUIRED genmsg actionlib_msgs actionlib geometry_msgs)
+add_action_files(DIRECTORY action FILES wm_navigation_al.action)
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -25,6 +28,7 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   costmap_2d
   navfn
+  genmsg
 )
 
 find_package(catkin REQUIRED COMPONENTS ${PACKAGE_DEPENDENCIES})
@@ -38,7 +42,11 @@ add_service_files(
 generate_messages(
   DEPENDENCIES
   sensor_msgs
+  actionlib_msgs 
+  geometry_msgs
+  std_msgs
 )
+
 
 include_directories(
   include
@@ -67,50 +75,42 @@ add_executable(wm_map_server_node
 	src/wm_map_server_node.cpp
 	src/WmMapServer.cpp
 )
-target_link_libraries(wm_map_server_node 
-	${LINK_LIBS}
-)
-
 add_executable(wm_localization_node 
 	src/wm_localization_node.cpp
 	src/WmLocalization.cpp
 )
-
-target_link_libraries(wm_localization_node 
-	${LINK_LIBS}
-)
-
 add_executable(wm_global_navigation_node 
 	src/wm_global_navigation_node.cpp
+	src/WmGlobalNavigationAS.cpp
 	src/WmGlobalNavigation.cpp
 )
 add_executable(wm_local_navigation_node 
 	src/wm_local_navigation_node.cpp
 	src/WmLocalNavigation.cpp
 )
-target_link_libraries(wm_local_navigation_node 
-	${LINK_LIBS}
+add_executable(wm_test_global_navigation_node 
+	src/wm_test_global_navigation_node.cpp
 )
-
-target_link_libraries(wm_global_navigation_node 
-	${LINK_LIBS}
-)
-
 add_executable(wm_fake_localization_node 
 	src/wm_fake_localization_node.cpp
 )
-
-target_link_libraries(wm_fake_localization_node 
-	${LINK_LIBS}
-)
-
 add_executable(wm_map_saver 
 	src/wm_map_saver.cpp
 )
 
-target_link_libraries(wm_map_saver 
-	${LINK_LIBS}
-)
+
+target_link_libraries(wm_map_server_node  ${LINK_LIBS})
+target_link_libraries(wm_localization_node ${LINK_LIBS})
+target_link_libraries(wm_local_navigation_node ${LINK_LIBS})
+target_link_libraries(wm_global_navigation_node ${LINK_LIBS})
+target_link_libraries(wm_test_global_navigation_node ${LINK_LIBS})
+target_link_libraries(wm_fake_localization_node ${LINK_LIBS})
+target_link_libraries(wm_map_saver ${LINK_LIBS})
+
+add_dependencies(wm_map_server_node wm_navigation_gencpp)
+add_dependencies(wm_global_navigation_node wm_navigation_gencpp)
+add_dependencies(wm_global_navigation_node wm_navigation_gencpp)
+add_dependencies(wm_map_saver wm_navigation_gencpp)
 
 ##set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
 ##set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")

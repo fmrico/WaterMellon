@@ -8,7 +8,7 @@
 
 #include "ros/ros.h"
 
-#include "wm_navigation/WmGlobalNavigation.h"
+#include "wm_navigation/WmGlobalNavigationAS.h"
 
 using namespace wm_navigation;
 
@@ -17,19 +17,17 @@ int main(int argc, char **argv)
 	ros::init(argc, argv, std::string("wm_global_navigation"));
 	ros::NodeHandle n;
 
-  ros::Rate loop_rate(5);
+	ros::Rate loop_rate(5);
 
-  WmGlobalNavigation gnav;
+	WmGlobalNavigationAS gnavas("wm_do_global_navigation");
 
-  try{
-	   while ( ros::ok())
-	   {
-
-		   gnav.step();
-
-       ros::spinOnce();
-       loop_rate.sleep();
-     }
+	try{
+		while ( ros::ok())
+		{
+			gnavas.step();
+			ros::spinOnce();
+			loop_rate.sleep();
+		}
 	}catch(std::runtime_error& e){
 		ROS_ERROR("wm_map_server exception: %s", e.what());
 		return -1;

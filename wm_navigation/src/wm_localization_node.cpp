@@ -10,7 +10,7 @@
 #include "wm_navigation/WmLocalization.h"
 
 
-using namespace wm_localization;
+using namespace wm_navigation;
 
 int main(int argc, char **argv)
 {

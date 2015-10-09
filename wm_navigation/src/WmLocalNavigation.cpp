@@ -36,15 +36,15 @@ WmLocalNavigation::WmLocalNavigation(ros::NodeHandle private_nh_)
 	/*m_perceptSub = new message_filters::Subscriber<sensor_msgs::PointCloud2> (m_nh, "cloud_in", 5);
 	m_tfPerceptSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_perceptSub, m_tfListener, m_baseFrameId, 5);
 	m_tfPerceptSub->registerCallback(boost::bind(&WmLocalNavigation::perceptionCallback, this, _1));
-*/
+	 */
 	goal_sub = m_nh.subscribe<geometry_msgs::TwistStamped>("/goal_vector", 1000, &WmLocalNavigation::gvectorCallback, this);
 
 	//repulsive_vector_pub = m_nh.advertise<geometry_msgs::PoseStamped>("/repulsive_vector", 1000);
 	resultant_vector_pub = m_nh.advertise<geometry_msgs::PoseStamped>("/resultant_vector", 1000);
 
 	vel_pub = m_nh.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity", 1000);
-//	if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
-//		ros::console::notifyLoggerLevelsChanged();
+	//	if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
+	//		ros::console::notifyLoggerLevelsChanged();
 
 
 }
@@ -98,7 +98,7 @@ WmLocalNavigation::perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& 
 	return;
 }
 
-*/
+ */
 void
 WmLocalNavigation::gvectorCallback(const geometry_msgs::TwistStamped::ConstPtr& gvector_in)
 {
@@ -185,7 +185,7 @@ WmLocalNavigation::step()
 	repulsive_vector->pose.orientation.y = qrep.getY();
 	repulsive_vector->pose.orientation.z = qrep.getZ();
 	repulsive_vector->pose.orientation.w = qrep.getW();
-*/
+	 */
 	/*tf::Quaternion qres;
 	qres.setEuler(0.0, 0.0, atan2(resy, resx));
 	resultant_vector->pose.position.x = 0.0f;
@@ -228,34 +228,42 @@ WmLocalNavigation::step()
 
 	 */
 
-	geometry_msgs::Twist vel;
-	//vel = global_vector->twist;
-
-	if(fabs(global_vector->twist.angular.z) > 0.5)
+	if(fabs(global_vector->twist.linear.x)>0.001 || fabs(global_vector->twist.angular.z>0.001))
 	{
-		vel.linear.x = 0.0;
-		vel.angular.z = global_vector->twist.angular.z;
+		geometry_msgs::Twist vel;
+		//vel = global_vector->twist;
+
+		if(fabs(global_vector->twist.angular.z) > 0.5)
+		{
+			vel.linear.x = 0.0;
+			vel.angular.z = global_vector->twist.angular.z;
+		}else
+		{
+			vel.linear.x = global_vector->twist.linear.x;
+			vel.angular.z = global_vector->twist.angular.z;
+		}
+
+		if(vel.angular.z>max_w)
+			vel.angular.z = max_w;
+		if(vel.angular.z<-max_w)
+			vel.angular.z = -max_w;
+		if(vel.linear.x > max_v)
+			vel.linear.x = max_v;
+		if(vel.linear.x < -max_v)
+			vel.linear.x = -max_v;
+		vel_pub.publish(vel);
+		ROS_DEBUG("LOCAL VEL = (%lf, %lf)", vel.linear.x, vel.angular.z);
 	}else
 	{
-		vel.linear.x = global_vector->twist.linear.x;
-		vel.angular.z = global_vector->twist.angular.z;
+		ROS_DEBUG("LOCAL VEL = (%lf, %lf)", global_vector->twist.linear.x, global_vector->twist.angular.z);
+		vel_pub.publish(global_vector->twist);
 	}
 
-	if(vel.angular.z>max_w)
-		vel.angular.z = max_w;
-	if(vel.angular.z<-max_w)
-		vel.angular.z = -max_w;
-	if(vel.linear.x > max_v)
-		vel.linear.x = max_v;
-	if(vel.linear.x < -max_v)
-		vel.linear.x = -max_v;
-
-	vel_pub.publish(vel);
 
 	//vel.linear.x = global_vector->twist.linear.x;
 	//vel. = global_vector->twist.linear.x;
 
-	ROS_DEBUG("LOCAL VEL = (%lf, %lf)", vel.linear.x, vel.angular.z);
+
 
 	ROS_DEBUG("LocalNavigation done (%f sec)", total_elapsed);
 

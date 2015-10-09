@@ -51,7 +51,8 @@
 
 #include <wm_navigation/Particle.h>
 #include <wm_navigation/Utilities.h>
-namespace wm_localization {
+
+namespace wm_navigation {
 
 
 class WmLocalization {

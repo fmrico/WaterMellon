@@ -57,6 +57,7 @@
 #include <costmap_2d/costmap_2d_publisher.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <wm_navigation/Utilities.h>
+
 namespace wm_navigation {
 
 
@@ -71,6 +72,12 @@ public:
 	virtual void poseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& goal_in);
 	virtual void perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in);
 	virtual void step();
+
+	void setGoalPose(const geometry_msgs::PoseStamped& goal_in);
+
+	geometry_msgs::Pose getStartingPose();
+	geometry_msgs::Pose getEndPose();
+	geometry_msgs::Pose getCurrentPose();
 
 private:
 
@@ -144,12 +151,14 @@ private:
 
 	std::vector<geometry_msgs::PoseStamped> plan;
 	geometry_msgs::PoseStamped::Ptr goal;
+	geometry_msgs::Pose::Ptr start;
 	geometry_msgs::TwistStamped::Ptr goal_vector;
 
 
 	ros::Publisher goal_vector_pub;
 
 	bool has_goal;
+
 };
 
 }

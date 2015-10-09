@@ -29,9 +29,10 @@ WmGlobalNavigation::WmGlobalNavigation(ros::NodeHandle private_nh_)
   goal_gradient_pub(&m_nh, &goal_gradient, "/map", "/wm_navigation_goal_gradient", true),
   goal_vector(new geometry_msgs::TwistStamped),
   goal(new geometry_msgs::PoseStamped),
+  start(new geometry_msgs::Pose),
   last_perception_(new pcl::PointCloud<pcl::PointXYZRGB>),
   has_goal(false)
-{
+ {
 	ros::NodeHandle private_nh(private_nh_);
 	private_nh.param("frame_id", m_worldFrameId, m_worldFrameId);
 	private_nh.param("base_frame_id", m_baseFrameId, m_baseFrameId);
@@ -55,6 +56,8 @@ WmGlobalNavigation::WmGlobalNavigation(ros::NodeHandle private_nh_)
 
 
 	last_dynamic_map_update = ros::WallTime::now();
+
+
 
 }
 
@@ -110,6 +113,34 @@ WmGlobalNavigation::perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr&
 }
 
 void
+WmGlobalNavigation::setGoalPose(const geometry_msgs::PoseStamped& goal_in)
+{
+	*goal = goal_in;
+	*start = pose.pose.pose;
+	has_goal = true;
+
+
+}
+geometry_msgs::Pose
+WmGlobalNavigation::getCurrentPose()
+{
+	return pose.pose.pose;
+}
+
+geometry_msgs::Pose
+WmGlobalNavigation::getStartingPose()
+{
+	return *start;
+}
+
+geometry_msgs::Pose
+WmGlobalNavigation::getEndPose()
+{
+	return goal->pose;
+}
+
+
+void
 WmGlobalNavigation::poseCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& pose_in)
 {
 
@@ -120,9 +151,7 @@ WmGlobalNavigation::poseCallback(const geometry_msgs::PoseWithCovarianceStamped:
 void
 WmGlobalNavigation::goalCallback(const geometry_msgs::PoseStamped::ConstPtr& goal_in)
 {
-	*goal = *goal_in;
-
-	has_goal = true;
+	setGoalPose(*goal_in);
 }
 
 
@@ -179,9 +208,6 @@ WmGlobalNavigation::mapCallback(const sensor_msgs::PointCloud2::ConstPtr& map_in
 	dynamic_costmap.setDefaultValue(0);
 	dynamic_costmap.resetMap(0,0,dynamic_costmap.getSizeInCellsX(), dynamic_costmap.getSizeInCellsY());
 	updateStaticCostmap();
-
-	//costmap_pub.publishCostmap();
-	//goal_gradient_pub.publishCostmap();
 
 	return;
 }
@@ -250,30 +276,11 @@ WmGlobalNavigation::updateDynamicCostmap()
 				new_cost =  dynamic_costmap.getCost(i, j) + (dynamic_cost_inc*total_elapsed);
 				if(new_cost>255) new_cost=255;
 
-				//ROS_DEBUG("(%d, %d)\t%d -> %lf", i, j, dynamic_costmap.getCost(i, j), new_cost);
-
 				dynamic_costmap.setCost(i, j, new_cost);
 			}
 
 		}
-	/*
-	ROS_DEBUG("Last_perception is %ld points", last_perception_->size());
 
-	pcl::PointCloud<pcl::PointXYZRGB>::iterator it;
-	for(it=last_perception_temp->begin(); it!=last_perception_temp->end(); ++it)
-	{
-		int i, j;
-		xy2ij(dynamic_costmap, it->x, it->y, i, j);
-		double new_cost;
-
-		new_cost =  dynamic_costmap.getCost(i, j) + (10.0*total_elapsed);
-
-		if(new_cost>255) new_cost=255;
-
-		dynamic_costmap.setCost(i, j, new_cost);
-
-		//ROS_DEBUG("(%d, %d) -> %lf", i, j, new_cost);
-	}*/
 
 	last_dynamic_map_update = ros::WallTime::now();
 }
@@ -366,6 +373,7 @@ WmGlobalNavigation::step()
 
 	updateDynamicCostmap();
 
+
 	if(has_goal)
 	{
 		updatePath();
@@ -411,11 +419,8 @@ WmGlobalNavigation::step()
 		dist2goal = sqrt((robot_x-goal_x)*(robot_x-goal_x)+(robot_y-goal_y)*(robot_y-goal_y));
 
 		ROS_DEBUG("DISTANCE2GOAL = %lf", dist2goal);
-		if(dist2goal<0.20)
+		if(dist2goal<0.05)
 		{
-
-			//has_goal = false;
-
 			goal_vector->twist.linear.x = 0.0;
 
 			double r, p, angle2goal;
@@ -441,8 +446,6 @@ WmGlobalNavigation::step()
 				g_y = g_y + (t_y-g_y)/(i+1);
 			}
 
-
-
 			goal_vector->twist.linear.x = dist2goal/5.0;
 
 
@@ -459,9 +462,17 @@ WmGlobalNavigation::step()
 		}
 
 
-		double total_elapsed = (ros::WallTime::now() - startTime).toSec();
-		ROS_DEBUG("GlobalNavigation done (%f sec)", total_elapsed);
+
+
+	}else{
+		goal_vector->twist.linear.x = 0.0;
+		goal_vector->twist.angular.z = 0.0;
+
 	}
+
+
+	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
+	ROS_DEBUG("GlobalNavigation done (%f sec)", total_elapsed);
 	publish_all();
 
 
@@ -499,36 +510,6 @@ WmGlobalNavigation::publish_goal()
 {
 	goal_vector->header.frame_id = m_baseFrameId;
 	goal_vector->header.stamp = ros::Time::now();
-
-	/*
-
-	tf::Transform G2L;
-	G2L.setOrigin( tf::Vector3(pose.pose.pose.position.x, pose.pose.pose.position.y,
-			pose.pose.pose.position.z) );
-	G2L.setRotation( tf::Quaternion(pose.pose.pose.orientation.x, pose.pose.pose.orientation.y,
-			pose.pose.pose.orientation.z, pose.pose.pose.orientation.w) );
-
-	tf::Transform G;
-	G.setOrigin( tf::Vector3(goal_vector->pose.position.x,
-			goal_vector->pose.position.y,
-			goal_vector->pose.position.z));
-	G.setRotation( tf::Quaternion(goal_vector->pose.orientation.x, goal_vector->pose.orientation.y,
-			goal_vector->pose.orientation.z, goal_vector->pose.orientation.w) );
-
-	tf::Transform R;
-
-	R = G2L.inverse()*G;
-
-	goal_vector->pose.position.x = R.getOrigin().getX();
-	goal_vector->pose.position.y = R.getOrigin().getY();
-	goal_vector->pose.position.z = R.getOrigin().getZ();
-
-
-	goal_vector->pose.orientation.x = R.getRotation().getX();
-	goal_vector->pose.orientation.y = R.getRotation().getY();
-	goal_vector->pose.orientation.z = R.getRotation().getZ();
-	goal_vector->pose.orientation.w = R.getRotation().getW();
-*/
 
 	goal_vector_pub.publish(goal_vector);
 
