@@ -20,7 +20,7 @@
     	<param name="publish_frequency" type="double" value="30.0" />
   	</node>
 
-	<node pkg="wm_navigation" type="wm_map_server_node" name="wm_map_server" args="'$(find wm_navigation)/maps/rockin.pcd'">
+	<node pkg="wm_navigation" type="wm_map_server_node" name="wm_map_server" args="'$(find wm_navigation)/maps/rockin.pcd'"><!-- launch-prefix="gdb -ex run -args"-->
 		<param name="frame_id" type="string" value="/map" />
 		<param name="mapping" type="boolean" value="false" />
 		<param name="pointcloud_min_z" type="double" value="-0.5" /> 

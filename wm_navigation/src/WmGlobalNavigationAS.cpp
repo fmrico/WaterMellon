@@ -84,6 +84,9 @@ WmGlobalNavigationAS::step()
 	ROS_DEBUG("[%f]", feedback_.percent_complete);;
 	feedback_.percent_complete = 100.0 * (1.0-currentDiff/totalDiff);
 
+	if(feedback_.percent_complete<0.0) feedback_.percent_complete=0.0;
+	if(feedback_.percent_complete>100.0) feedback_.percent_complete=100.0;
+
 	as_.publishFeedback(feedback_);
 
 	if(feedback_.percent_complete >= 99.0)

@@ -93,71 +93,53 @@ private:
 
 	void updateGradient(int i, int j, int cost);
 
-	inline void xy2ij(const costmap_2d::Costmap2D &costmap, const double x, const double y, int &i, int &j) {
-		i = (x - costmap.getOriginX()) / costmap.getResolution();
-		j = (y - costmap.getOriginY()) / costmap.getResolution();
 
-		if(i>costmap.getSizeInCellsX()) i = costmap.getSizeInCellsX()-1;
-		if(i<0) i = 0;
-		if(j>costmap.getSizeInCellsY()) j = costmap.getSizeInCellsY()-1;
-		if(j<0) j = 0;
-	}
+	ros::NodeHandle nh_;
+	tf::TransformListener tfListener_;
 
-	inline void ij2xy(const costmap_2d::Costmap2D &costmap, const int i, const int j, double &x, double &y) {
-		x = costmap.getOriginX() + i*costmap.getResolution() + costmap.getResolution()/2;
-		y = costmap.getOriginY() + j*costmap.getResolution() + costmap.getResolution()/2;
-	}
-	inline void ij2xy(const costmap_2d::Costmap2D &costmap, const int i, const int j, float &x, float &y) {
-		x = costmap.getOriginX() + i*costmap.getResolution() + costmap.getResolution()/2;
-		y = costmap.getOriginY() + j*costmap.getResolution() + costmap.getResolution()/2;
-	}
-	ros::NodeHandle m_nh;
-
-	tf::TransformListener m_tfListener;
-
-	tf::MessageFilter<sensor_msgs::PointCloud2>* m_tfMapSub;
+	tf::MessageFilter<sensor_msgs::PointCloud2>* tfMapSub_;
 	tf::MessageFilter<sensor_msgs::PointCloud2>* tfPerceptSub_;
-	message_filters::Subscriber<sensor_msgs::PointCloud2>* m_mapSub;
+	message_filters::Subscriber<sensor_msgs::PointCloud2>* mapSub_;
 	message_filters::Subscriber<sensor_msgs::PointCloud2>* perceptSub_;
 
-	ros::Subscriber goal_sub;
-	ros::Subscriber pose_sub;
+	ros::Subscriber goal_sub_;
+	ros::Subscriber pose_sub_;
 
-	std::string m_worldFrameId;
-	std::string m_baseFrameId;
+	std::string worldFrameId_;
+	std::string baseFrameId_;
 	double res_;
 	double pointcloudMinZ_;
 	double pointcloudMaxZ_;
-	double dynamic_cost_dec;
-	double dynamic_cost_inc;
+	double dynamic_cost_dec_;
+	double dynamic_cost_inc_;
 
-	geometry_msgs::PoseWithCovarianceStamped pose;
+	geometry_msgs::PoseWithCovarianceStamped pose_;
 
-	pcl::octree::OctreePointCloudSearch<pcl::PointXYZRGB>::Ptr map;
+	pcl::octree::OctreePointCloudSearch<pcl::PointXYZRGB>::Ptr map_;
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr last_perception_;
 
-	float map_max_x, map_min_x, map_max_y, map_min_y;
+	float map_max_x_, map_min_x_, map_max_y_, map_min_y_;
 
-	ros::WallTime last_dynamic_map_update;
+	ros::WallTime last_dynamic_map_update_;
 
-	costmap_2d::Costmap2D static_costmap;
-	costmap_2d::Costmap2D dynamic_costmap;
-	costmap_2d::Costmap2D goal_gradient;
+	costmap_2d::Costmap2D static_costmap_;
+	costmap_2d::Costmap2D dynamic_costmap_;
+	costmap_2d::Costmap2D goal_gradient_;
 
-	costmap_2d::Costmap2DPublisher static_costmap_pub;
-	costmap_2d::Costmap2DPublisher dynamic_costmap_pub;
-	costmap_2d::Costmap2DPublisher goal_gradient_pub;
-
-
-	std::vector<geometry_msgs::PoseStamped> plan;
-	geometry_msgs::PoseStamped::Ptr goal;
-	geometry_msgs::Pose::Ptr start;
-	geometry_msgs::TwistStamped::Ptr goal_vector;
+	costmap_2d::Costmap2DPublisher static_costmap_pub_;
+	costmap_2d::Costmap2DPublisher dynamic_costmap_pub_;
+	costmap_2d::Costmap2DPublisher goal_gradient_pub_;
 
 
-	ros::Publisher goal_vector_pub;
+	std::vector<geometry_msgs::PoseStamped> plan_;
+	geometry_msgs::PoseStamped::Ptr goal_;
+	geometry_msgs::Pose::Ptr start_;
+	geometry_msgs::TwistStamped::Ptr goal_vector_;
 
-	bool has_goal;
+
+	ros::Publisher goal_vector_pub_;
+
+	bool has_goal_;
 
 };
 

@@ -9,6 +9,7 @@
 #define UTILITIES_H_
 
 #include <math.h>
+#include <costmap_2d/costmap_2d_ros.h>
 
 namespace wm_navigation {
 inline double
@@ -80,6 +81,25 @@ inline float angleZ(const geometry_msgs::Pose& p1, const geometry_msgs::Pose& p2
 	tf::Matrix3x3(q2).getRPY(ro2, pi2, ya2);
 
 	return normalizePi(ya1-ya2);
+}
+
+inline void xy2ij(const costmap_2d::Costmap2D &costmap, const double x, const double y, int &i, int &j) {
+	i = (x - costmap.getOriginX()) / costmap.getResolution();
+	j = (y - costmap.getOriginY()) / costmap.getResolution();
+
+	if(i>costmap.getSizeInCellsX()) i = costmap.getSizeInCellsX()-1;
+	if(i<0) i = 0;
+	if(j>costmap.getSizeInCellsY()) j = costmap.getSizeInCellsY()-1;
+	if(j<0) j = 0;
+}
+
+inline void ij2xy(const costmap_2d::Costmap2D &costmap, const int i, const int j, double &x, double &y) {
+	x = costmap.getOriginX() + i*costmap.getResolution() + costmap.getResolution()/2;
+	y = costmap.getOriginY() + j*costmap.getResolution() + costmap.getResolution()/2;
+}
+inline void ij2xy(const costmap_2d::Costmap2D &costmap, const int i, const int j, float &x, float &y) {
+	x = costmap.getOriginX() + i*costmap.getResolution() + costmap.getResolution()/2;
+	y = costmap.getOriginY() + j*costmap.getResolution() + costmap.getResolution()/2;
 }
 }
 #endif /* UTILITIES_H_ */
