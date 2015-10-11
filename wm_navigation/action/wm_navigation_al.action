@@ -1,8 +1,0 @@
-# Define the goal
-geometry_msgs/PoseStamped goal
----
-# Define the result
-bool finished
----
-# Define a feedback message
-float32 percent_complete
