@@ -13,7 +13,7 @@
 #include <string>
 #include <pcl/io/pcd_io.h>
 
-#include <wm_navigation/GetMap.h>
+#include <watermellon/GetMap.h>
 
 
 #define USAGE "\nUSAGE: wm_map_saver <mapfile.pcd>\n"
@@ -30,8 +30,8 @@ public:
 
     ROS_INFO("Requesting the map from %s...", n.resolveName(servname).c_str());
 
-    wm_navigation::GetMap::Request req;
-    wm_navigation::GetMap::Response resp;
+    watermellon::GetMap::Request req;
+    watermellon::GetMap::Response resp;
 
     while(n.ok() && !ros::service::call(servname, req, resp))
     {

@@ -35,7 +35,7 @@
 #include <pcl/octree/octree_search.h>
 #include <pcl/octree/octree.h>
 
-#include <wm_navigation/GetMap.h>
+#include <watermellon/GetMap.h>
 
 namespace wm_map_server {
 
@@ -49,7 +49,7 @@ public:
 
 	void insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in);
 	void setOriginCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& origin);
-	bool mapSrv(wm_navigation::GetMap::Request  &req, wm_navigation::GetMap::Response &res);
+	bool mapSrv(watermellon::GetMap::Request  &req, watermellon::GetMap::Response &res);
 
 	virtual bool openFile(const std::string& filename);
 

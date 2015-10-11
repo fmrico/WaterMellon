@@ -36,7 +36,6 @@
 #include <pcl/octree/octree_search.h>
 #include <pcl/octree/octree.h>
 
-#include <wm_navigation/GetMap.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <nav_msgs/OccupancyGrid.h>
 

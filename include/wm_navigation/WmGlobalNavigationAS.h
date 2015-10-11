@@ -11,7 +11,7 @@
 #include <ros/ros.h>
 #include <std_msgs/Float32.h>
 #include <actionlib/server/simple_action_server.h>
-#include <wm_navigation/wm_navigation_alAction.h>
+#include <watermellon/wm_navigation_alAction.h>
 
 #include <wm_navigation/WmGlobalNavigation.h>
 
@@ -29,13 +29,13 @@ public:
 
 protected:
   ros::NodeHandle nh_;
-  actionlib::SimpleActionServer<wm_navigation::wm_navigation_alAction> as_;
+  actionlib::SimpleActionServer<watermellon::wm_navigation_alAction> as_;
   std::string action_name_;
 
   geometry_msgs::PoseStamped goalPose_;
 
-  wm_navigation::wm_navigation_alFeedback feedback_;
-  wm_navigation::wm_navigation_alResult result_;
+  watermellon::wm_navigation_alFeedback feedback_;
+  watermellon::wm_navigation_alResult result_;
 
 
 };

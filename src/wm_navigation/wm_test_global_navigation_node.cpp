@@ -9,13 +9,10 @@
 #include <ros/ros.h>
 #include <actionlib/client/simple_action_client.h>
 #include <actionlib/client/terminal_state.h>
-#include <wm_navigation/wm_navigation_alAction.h>
-
-using namespace wm_navigation;
-
+#include <watermellon/wm_navigation_alAction.h>
 
 void doneCb(const actionlib::SimpleClientGoalState& state,
-		const wm_navigation::wm_navigation_alResultConstPtr& result)
+		const watermellon::wm_navigation_alResultConstPtr& result)
 {
 	ROS_INFO("Finished in state [%s]", state.toString().c_str());
 	ROS_INFO("Answer: %s", result->finished? "True": "False");
@@ -29,7 +26,7 @@ void activeCb()
 }
 
 // Called every time feedback is received for the goal
-void feedbackCb(const wm_navigation_alFeedbackConstPtr& feedback)
+void feedbackCb(const watermellon::wm_navigation_alFeedbackConstPtr& feedback)
 {
 	ROS_INFO("Got Feedback of length %f", feedback->percent_complete);
 }
@@ -41,7 +38,7 @@ int main(int argc, char **argv)
 	ros::init(argc, argv, std::string("test_wm_global_navigation"));
 	ros::NodeHandle n;
 
-	actionlib::SimpleActionClient<wm_navigation::wm_navigation_alAction> ac("wm_do_global_navigation", true);
+	actionlib::SimpleActionClient<watermellon::wm_navigation_alAction> ac("wm_do_global_navigation", true);
 
 	ROS_INFO("Waiting for action server to start.");
 
@@ -49,7 +46,7 @@ int main(int argc, char **argv)
 
 	ROS_INFO("Action server started, sending goal.");
 	// send a goal to the action
-	wm_navigation::wm_navigation_alGoal goal;
+	watermellon::wm_navigation_alGoal goal;
 
 	goal.goal.pose.position.x = 6.0;
 	goal.goal.pose.position.y = 3.0;

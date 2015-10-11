@@ -10,10 +10,10 @@
 </gazebo>
 
  <xacro:include filename="$(find turtlebot_description)/urdf/common_properties.urdf.xacro"/>
-  <xacro:include filename="$(find wm_navigation)/urdf/camera_properties.urdf.xacro"/>
+  <xacro:include filename="$(find watermellon)/robots/kobuki/camera_properties.urdf.xacro"/>
    <!-- 3D Sensors -->
   <xacro:include filename="$(find turtlebot_description)/urdf/sensors/kinect.urdf.xacro"/>
-  <xacro:include filename="$(find wm_navigation)/urdf/asus_xtion_pro.urdf.xacro"/>
+  <xacro:include filename="$(find watermellon)/robots/kobuki/asus_xtion_pro.urdf.xacro"/>
   
   <kobuki/>
   

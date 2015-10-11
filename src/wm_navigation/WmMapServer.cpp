@@ -98,7 +98,7 @@ WmMapServer::step()
 }
 
 bool
-WmMapServer::mapSrv(wm_navigation::GetMap::Request  &req, wm_navigation::GetMap::Response &res)
+WmMapServer::mapSrv(watermellon::GetMap::Request  &req, watermellon::GetMap::Response &res)
 {
 
 	ROS_INFO("Sending map  on service request");
