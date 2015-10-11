@@ -3,28 +3,36 @@
               Any modifications will be overwritten.
               To include a user specific buildfile here, simply create one in the same
               directory with the processing instruction <?eclipse.ant.import?>
-              as the first entry and export the buildfile again. -->
-<project basedir="." default="build" name="Vicode">
+              as the first entry and export the buildfile again. --><project basedir="." default="build" name="Vicode">
     <property environment="env"/>
     <property name="debuglevel" value="source,lines,vars"/>
     <property name="target" value="1.6"/>
     <property name="source" value="1.6"/>
     <path id="Vicode.classpath">
         <pathelement location="bin"/>
-        <pathelement location="lib/AbsoluteLayout.jar"/>
-        <pathelement location="lib/appframework-1.0.3.jar"/>
-         <pathelement location="lib/org-netbeans-modules-swingapp.jar"/>
+        <pathelement location="../../../../../../usr/share/java/ant-ice.jar"/>
+        <pathelement location="../../../../../../usr/share/java/Ice.jar"/>
         <pathelement location="lib/piccolo2d-core-1.3.1-javadoc.jar"/>
         <pathelement location="lib/piccolo2d-core-1.3.1.jar"/>
         <pathelement location="lib/piccolo2d-extras-1.3.1-javadoc.jar"/>
         <pathelement location="lib/piccolo2d-extras-1.3.1.jar"/>
-        <pathelement location="lib/swing-layout-1.0.3.jar"/>
+        <pathelement location="../../../../../../usr/share/java/swing-layout-1.0.4.jar"/>
+        <pathelement location="lib/appframework-1.0.3.jar"/>
         <pathelement location="lib/swing-worker-1.1.jar"/>
+        <pathelement location="lib/org-netbeans-modules-swingapp.jar"/>
+        <pathelement location="lib/AbsoluteLayout.jar"/>
+        <pathelement location="lib/swing-layout-1.0.3.jar"/>
     </path>
     <target name="init">
         <mkdir dir="bin"/>
         <copy includeemptydirs="false" todir="bin">
             <fileset dir="src">
+                <exclude name="**/*.launch"/>
+                <exclude name="**/*.java"/>
+            </fileset>
+        </copy>
+        <copy includeemptydirs="false" todir="bin">
+            <fileset dir="generated">
                 <exclude name="**/*.launch"/>
                 <exclude name="**/*.java"/>
             </fileset>
@@ -40,60 +48,34 @@
         <echo message="${ant.project.name}: ${ant.file}"/>
         <javac debug="true" debuglevel="${debuglevel}" destdir="bin" includeantruntime="false" source="${source}" target="${target}">
             <src path="src"/>
+            <src path="generated"/>
             <classpath refid="Vicode.classpath"/>
         </javac>
     </target>
     <target description="Build all projects which reference this project. Useful to propagate changes." name="build-refprojects"/>
-    <target description="copy Eclipse compiler jars to ant lib directory" name="init-eclipse-compiler">
-        <copy todir="${ant.library.dir}">
-            <fileset dir="${ECLIPSE_HOME}/plugins" includes="org.eclipse.jdt.core_*.jar"/>
-        </copy>
-        <unzip dest="${ant.library.dir}">
-            <patternset includes="jdtCompilerAdapter.jar"/>
-            <fileset dir="${ECLIPSE_HOME}/plugins" includes="org.eclipse.jdt.core_*.jar"/>
-        </unzip>
-    </target>
-    <target description="compile project with Eclipse compiler" name="build-eclipse-compiler">
-        <property name="build.compiler" value="org.eclipse.jdt.core.JDTCompilerAdapter"/>
-        <antcall target="build"/>
-    </target>
     <target name="Vicode">
-        <taskdef name="slice2java" classpath="/usr/share/ant/lib/ant-ice.jar" classname="Slice2JavaTask"/>
-       	   <mkdir dir="src/"/>
-       	    <slice2java outputdir="src/">
-       			<includepath>
-       				<pathelement location="src/" />
-       			</includepath>
-       	        <fileset dir="../../ICE" includes="*.ice"/>
-       	   </slice2java>
-   
+	   	<taskdef name="slice2java" classpath="/usr/share/ant/lib/ant-ice.jar" classname="Slice2JavaTask"/>
+    		<mkdir dir="generated/"/>
+			<slice2java outputdir="generated/">
+				<includepath>
+					<pathelement location="generated" />
+				</includepath>
+				<fileset dir="../../ICE" includes="*.ice"/>
+			</slice2java>
+
         <java classname="vicode.Vicode" failonerror="true" fork="yes">
             <classpath refid="Vicode.classpath"/>
         </java>
     </target>
-	   <target name="MissionControl">
-	        <taskdef name="slice2java" classpath="/usr/share/ant/lib/ant-ice.jar" classname="Slice2JavaTask"/>
-	       	   <mkdir dir="src/"/>
-	       	    <slice2java outputdir="src/">
-	       			<includepath>
-	       				<pathelement location="src/" />
-	       			</includepath>
-	       	        <fileset dir="../../ICE" includes="*.ice"/>
-	       	   </slice2java>
-	   
-	        <java classname="missioncontrol.MissionControl" failonerror="true" fork="yes">
-	            <classpath refid="Vicode.classpath"/>
-	        </java>
-	    </target>
     <target name="Launcher">
-        <taskdef name="slice2java" classpath="/usr/share/ant/lib/ant-ice.jar" classname="Slice2JavaTask"/>
-       	   <mkdir dir="src/"/>
-       	    <slice2java outputdir="src/">
-       			<includepath>
-       				<pathelement location="src/" />
-       			</includepath>
-       	        <fileset dir="../../ICE" includes="*.ice"/>
-       	   </slice2java>
+	   	<taskdef name="slice2java" classpath="/usr/share/ant/lib/ant-ice.jar" classname="Slice2JavaTask"/>
+    		<mkdir dir="generated/"/>
+			<slice2java outputdir="generated/">
+				<includepath>
+					<pathelement location="generated" />
+				</includepath>
+				<fileset dir="../../ICE" includes="*.ice"/>
+			</slice2java>
         <java classname="launcher.Launcher" failonerror="true" fork="yes">
             <classpath refid="Vicode.classpath"/>
         </java>
