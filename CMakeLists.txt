@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(watermellon)
 
+include(MakeICE.cmake)
+
 ##set(ROS_BUILD_TYPE Debug)
 ##set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BUILD_TYPE Release)
@@ -30,6 +32,9 @@ find_package(catkin REQUIRED COMPONENTS
   navfn
   genmsg
 )
+
+FIND_LIBRARY(ice_lib Ice)
+FIND_LIBRARY(iceutil_lib IceUtil)
 
 find_package(catkin REQUIRED COMPONENTS ${PACKAGE_DEPENDENCIES})
 find_package(PCL REQUIRED QUIET COMPONENTS common sample_consensus io segmentation filters)
@@ -65,10 +70,37 @@ set(LINK_LIBS
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
 )
+##################################################################
+# BICA
+##################################################################
+add_executable(wm_bica_node
+	include/wm_bica/BicaIceComms.h src/wm_bica/BicaIceComms.cpp
+	include/wm_bica/Component.h src/wm_bica/Component.cpp
+	include/wm_bica/Register.h src/wm_bica/Register.cpp
+	include/wm_bica/CascadeScheduler.h src/wm_bica/CascadeScheduler.cpp
+	include/wm_bica/Singleton.h
+	include/wm_bica/BicaDispatcher.h src/wm_bica/BicaDispatcher.cpp
+	include/wm_bica/IceComms.h src/wm_bica/IceComms.cpp
+	
+	src/wm_bica/components/TestSimple.h src/wm_bica/components/TestSimple.cpp	
+	
+	src/wm_bica/bica.cpp
+)
 
-#add_library(${PROJECT_NAME} src/wm_navigation/WmMapServer.cpp src/wm_navigation/WmLocalization.cpp src/wm_navigation/WmGlobalNavigation.cpp )
-#target_link_libraries(${PROJECT_NAME} ${LINK_LIBS})
-#add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencfg)
+## Add cmake target dependencies of the executable/library
+## as an example, message headers may need to be generated before nodes
+# add_dependencies(bica_node bica_generate_messages_cpp)
+
+## Specify libraries to link a library or executable target against
+target_link_libraries(wm_bica_node
+   ${ice_lib}
+   ${iceutil_lib}
+   ${LINK_LIBS}
+)
+
+##################################################################
+# Navigation
+##################################################################
 
 add_executable(wm_map_server_node 
 	src/wm_navigation/wm_map_server_node.cpp
@@ -110,6 +142,9 @@ add_dependencies(wm_map_server_node watermellon_gencpp)
 add_dependencies(wm_global_navigation_node watermellon_gencpp)
 add_dependencies(wm_global_navigation_node watermellon_gencpp)
 add_dependencies(wm_map_saver watermellon_gencpp)
+
+
+
 
 ##set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
 ##set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")

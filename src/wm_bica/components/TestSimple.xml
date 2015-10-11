@@ -1,0 +1,12 @@
+<component id="TestSimple">
+<conf autorestart="0"/>
+	<state id="initial" x="58.0" y="39.0" code="Initial_state_code" >
+	</state>
+	<state id="State1" x="338.0" y="59.0" code="State1_state_code">
+	</state>
+	<state id="State2" x="687.0" y="210.0" code="State2_state_code">
+	</state>
+	<transition id="Initial2State10" x="244.0" y="95.0" code="Initial2State10_transition_code" source="Initial" target="State1" priority="1" timer="false"/>
+	<transition id="State12State20" x="600.5" y="126.5" code="State12State20_transition_code" source="State1" target="State2" priority="1" timer="true"/>
+	<transition id="State22State10" x="520.5" y="200.5" code="State22State10_transition_code" source="State2" target="State1" priority="1" timer="true"/>
+</component>
