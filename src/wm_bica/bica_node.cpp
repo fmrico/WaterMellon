@@ -28,13 +28,11 @@ int main(int argc, char **argv)
 
 	TestSimple::getInstance();
 
-	bica_sched->add(TestSimple::getInstance());
-
-
-	if(ros::param::has("~init_component"))
+	ros::NodeHandle private_nh("~");
+	if(private_nh.hasParam("init_component"))
 	{
 		std::string initc;
-		ros::param::get("~init_component", initc);
+		private_nh.param("init_component", initc, initc);
 		std::cout<<"Auto starting: ["<<initc<<"]"<<std::endl;
 
 		Component *initcp = Register::getInstance()->getComponent(initc);

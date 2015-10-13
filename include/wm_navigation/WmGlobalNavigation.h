@@ -57,6 +57,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <wm_navigation/Utilities.h>
 
+
 namespace wm_navigation {
 
 
@@ -139,6 +140,9 @@ private:
 	ros::Publisher goal_vector_pub_;
 
 	bool has_goal_;
+	bool recalcule_path_;
+
+
 
 };
 

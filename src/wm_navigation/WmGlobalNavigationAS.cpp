@@ -89,7 +89,7 @@ WmGlobalNavigationAS::step()
 
 	as_.publishFeedback(feedback_);
 
-	if(feedback_.percent_complete >= 99.0)
+	if(feedback_.percent_complete >= 98.0)
 	{
 		ROS_DEBUG("%s: Succeeded", action_name_.c_str());
 		// set the action state to succeeded

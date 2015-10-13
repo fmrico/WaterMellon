@@ -8,6 +8,7 @@ TestSimple::TestSimple()
 
 	init(TestSimple_ID);
 
+	_Navigator = Navigator::getInstance();
 	state = Initial;
 }
 
@@ -22,38 +23,53 @@ void TestSimple::Initial_state_code(void)
 //BUILDER COMMENT. DO NOT REMOVE. end Initial_state_code
 }
 
-void TestSimple::State1_state_code(void)
+void TestSimple::Wait_state_code(void)
 {
-//BUILDER COMMENT. DO NOT REMOVE. begin State1_state_code
-std::cout<<"State 1"<<std::endl;
-//BUILDER COMMENT. DO NOT REMOVE. end State1_state_code
+//BUILDER COMMENT. DO NOT REMOVE. begin Wait_state_code
+
+
+
+//BUILDER COMMENT. DO NOT REMOVE. end Wait_state_code
 }
 
-void TestSimple::State2_state_code(void)
+void TestSimple::Command_state_code(void)
 {
-//BUILDER COMMENT. DO NOT REMOVE. begin State2_state_code
-std::cout<<"State 2"<<std::endl;//BUILDER COMMENT. DO NOT REMOVE. end State2_state_code
+//BUILDER COMMENT. DO NOT REMOVE. begin Command_state_code
+
+//BUILDER COMMENT. DO NOT REMOVE. end Command_state_code
 }
 
-bool TestSimple::Initial2State10_transition_code(void)
+bool TestSimple::Initial2Wait0_transition_code(void)
 {
-//BUILDER COMMENT. DO NOT REMOVE. begin Initial2State10_transition_code
-return true;
-//BUILDER COMMENT. DO NOT REMOVE. end Initial2State10_transition_code
+//BUILDER COMMENT. DO NOT REMOVE. begin Initial2Wait0_transition_code
+	_Navigator->setGoal(locations_.getPose(locs[npos]));
+
+	std::cout<<"Going to ["<<locs[npos]<<"]"<<std::endl;
+
+	npos = (npos+1)%5;
+	return true;
+//BUILDER COMMENT. DO NOT REMOVE. end Initial2Wait0_transition_code
+
 }
 
-bool TestSimple::State12State20_transition_code(void)
+
+bool TestSimple::Wait2Command0_transition_code(void)
 {
-//BUILDER COMMENT. DO NOT REMOVE. begin State12State20_transition_code
-return getStopWatch()>2000;
-//BUILDER COMMENT. DO NOT REMOVE. end State12State20_transition_code
+//BUILDER COMMENT. DO NOT REMOVE. begin Wait2Command0_transition_code
+return _Navigator->finished();
+//BUILDER COMMENT. DO NOT REMOVE. end Wait2Command0_transition_code
 }
 
-bool TestSimple::State22State10_transition_code(void)
+bool TestSimple::Command2Wait0_transition_code(void)
 {
-//BUILDER COMMENT. DO NOT REMOVE. begin State22State10_transition_code
-return getStopWatch()>2000;
-//BUILDER COMMENT. DO NOT REMOVE. end State22State10_transition_code
+//BUILDER COMMENT. DO NOT REMOVE. begin Command2Wait0_transition_code
+	_Navigator->setGoal(locations_.getPose(locs[npos]));
+
+	std::cout<<"Going to ["<<locs[npos]<<"]"<<std::endl;
+
+	npos = (npos+1)%5;
+	return true;
+//BUILDER COMMENT. DO NOT REMOVE. end Command2Wait0_transition_code
 }
 
 void
@@ -66,36 +82,38 @@ TestSimple::step(void)
 		if (isTime2Run()) {
 			Initial_state_code();
 
-			if (Initial2State10_transition_code()) {
-				state = State1;
+			if (Initial2Wait0_transition_code()) {
+				state = Wait;
 				resetStopWatch();
 			}
 		}
 
 		break;
-	case State1:
+	case Wait:
+		_Navigator->step();
 
 		if (isTime2Run()) {
-			State1_state_code();
+			Wait_state_code();
 
-			if (State12State20_transition_code()) {
-				state = State2;
+			if (Wait2Command0_transition_code()) {
+				state = Command;
 				resetStopWatch();
 			}
 		}
 
 		break;
-	case State2:
+	case Command:
 
 		if (isTime2Run()) {
-			State2_state_code();
+			Command_state_code();
 
-			if (State22State10_transition_code()) {
-				state = State1;
+			if (Command2Wait0_transition_code()) {
+				state = Wait;
 				resetStopWatch();
 			}
 		}
 
+		_Navigator->step();
 		break;
 	default:
 		std::cout << "[TestSimple::step()] Invalid state\n";
@@ -103,5 +121,36 @@ TestSimple::step(void)
 }
 
 //BUILDER COMMENT. DO NOT REMOVE. auxcode begin
+
+void
+TestSimple::init(const std::string newName)
+{
+	Component::init(newName);
+	setFreqTime(LONG_RATE);
+
+	npos=0;
+	locs[0] = "bedroom";
+	locs[1] = "voidroom";
+	locs[2] = "kitchen";
+	locs[3] = "livingroom";
+	locs[4] = "voidroom";
+
+	ros::NodeHandle private_nh("~");
+
+	if(private_nh.hasParam("locations_file"))
+	{
+		std::string loc_file;
+		private_nh.param("locations_file", loc_file,loc_file);
+
+		ROS_INFO("Reading Locations from %s", loc_file.c_str());
+
+		locations_.readFile(loc_file);
+
+		locations_.printLocations();
+
+	}
+
+}
+
 //BUILDER COMMENT. DO NOT REMOVE. auxcode end
 

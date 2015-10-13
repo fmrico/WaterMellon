@@ -31,6 +31,7 @@
 									<listOptionValue builtIn="false" value="/home/paco/catkin_ws/devel/include"/>
 									<listOptionValue builtIn="false" value="/opt/ros/indigo/include"/>
 									<listOptionValue builtIn="false" value="/usr/include/pcl-1.7"/>
+									<listOptionValue builtIn="false" value="/usr/include/jsoncpp"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.1388186311" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>

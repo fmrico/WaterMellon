@@ -2,13 +2,16 @@ cmake_minimum_required(VERSION 2.8.3)
 project(watermellon)
 
 include(MakeICE.cmake)
+include(FindJsoncpp.cmake)
 
 ##set(ROS_BUILD_TYPE Debug)
 ##set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_BUILD_TYPE Release)
 
 find_package(catkin REQUIRED genmsg actionlib_msgs actionlib geometry_msgs)
-add_action_files(DIRECTORY action FILES wm_navigation_al.action)
+add_action_files(DIRECTORY action FILES 
+	wm_navigation_al.action
+	)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -31,13 +34,22 @@ find_package(catkin REQUIRED COMPONENTS
   costmap_2d
   navfn
   genmsg
+ 
 )
+
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+#message("** CMAKE_MODULE_PATH: " ${CMAKE_MODULE_PATH})
 
 FIND_LIBRARY(ice_lib Ice)
 FIND_LIBRARY(iceutil_lib IceUtil)
+find_package(Jsoncpp REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS ${PACKAGE_DEPENDENCIES})
 find_package(PCL REQUIRED QUIET COMPONENTS common sample_consensus io segmentation filters)
+
+#message("**Jsoncpp_INCLUDE_DIR: " ${JSONCPP_INCLUDE_DIR} )
+#message("**Jsoncpp_LIBRARY: " ${JSONCPP_LIBRARY} )
 
 add_service_files(
   DIRECTORY srv
@@ -56,6 +68,7 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
+  ${JSONCPP_INCLUDE_DIR}
 )
 
 catkin_package(
@@ -69,6 +82,7 @@ catkin_package(
 set(LINK_LIBS
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
+  ${JSONCPP_LIBRARY}
 )
 ##################################################################
 # BICA
@@ -83,8 +97,10 @@ add_executable(wm_bica_node
 	include/wm_bica/IceComms.h src/wm_bica/IceComms.cpp
 	
 	src/wm_bica/components/TestSimple.h src/wm_bica/components/TestSimple.cpp	
+	src/wm_bica/components/Navigator.h src/wm_bica/components/Navigator.cpp	
+	src/wm_navigation/Locations.cpp
 	
-	src/wm_bica/bica.cpp
+	src/wm_bica/bica_node.cpp
 )
 
 ## Add cmake target dependencies of the executable/library
@@ -114,6 +130,7 @@ add_executable(wm_global_navigation_node
 	src/wm_navigation/wm_global_navigation_node.cpp
 	src/wm_navigation/WmGlobalNavigationAS.cpp
 	src/wm_navigation/WmGlobalNavigation.cpp
+	src/wm_navigation/Locations.cpp
 )
 add_executable(wm_local_navigation_node 
 	src/wm_navigation/wm_local_navigation_node.cpp

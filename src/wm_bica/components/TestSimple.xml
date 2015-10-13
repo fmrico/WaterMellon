@@ -1,12 +1,15 @@
 <component id="TestSimple">
 <conf autorestart="0"/>
+	<dependenceComponent id="Navigator" x="332.0" y="285.0"/>
 	<state id="initial" x="58.0" y="39.0" code="Initial_state_code" >
 	</state>
-	<state id="State1" x="338.0" y="59.0" code="State1_state_code">
+	<state id="Wait" x="338.0" y="59.0" code="Wait_state_code">
+		<requirement id="Navigator"/>
 	</state>
-	<state id="State2" x="687.0" y="210.0" code="State2_state_code">
+	<state id="Command" x="687.0" y="210.0" code="Command_state_code">
+		<modulation id="Navigator"/>
 	</state>
-	<transition id="Initial2State10" x="244.0" y="95.0" code="Initial2State10_transition_code" source="Initial" target="State1" priority="1" timer="false"/>
-	<transition id="State12State20" x="600.5" y="126.5" code="State12State20_transition_code" source="State1" target="State2" priority="1" timer="true"/>
-	<transition id="State22State10" x="520.5" y="200.5" code="State22State10_transition_code" source="State2" target="State1" priority="1" timer="true"/>
+	<transition id="Initial2Wait0" x="244.0" y="95.0" code="Initial2Wait0_transition_code" source="Initial" target="Wait" priority="1" timer="false"/>
+	<transition id="Wait2Command0" x="600.5" y="126.5" code="Wait2Command0_transition_code" source="Wait" target="Command" priority="1" timer="true"/>
+	<transition id="Command2Wait0" x="520.5" y="200.5" code="Command2Wait0_transition_code" source="Command" target="Wait" priority="1" timer="true"/>
 </component>

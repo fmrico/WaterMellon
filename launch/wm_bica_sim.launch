@@ -1,5 +1,4 @@
 <launch>
-
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
     <arg name="use_sim_time" value="true"/>
     <arg name="debug" value="false"/>
@@ -33,19 +32,20 @@
 	</node>
 
 
- 	<node pkg="watermellon" type="wm_localization_node" name="wm_localization" output="screen"> 
+ 	<node pkg="watermellon" type="wm_fake_localization_node" name="wm_localization" output="screen"> 
   		<param name="frame_id" type="string" value="map" />
  		<param name="pointcloud_min_z" type="double" value="-0.5" /> 
 		<param name="pointcloud_max_z" type="double" value="2.0" />
 		<param name="pointcloud_max_x" type="double" value="4.0" />
 		<param name="pointcloud_max_t_xy" type="double" value="0.3" />
 		<param name="pointcloud_max_t_xz" type="double" value="0.4" />
- 		<remap from="cloud_in" to="/camera/depth/points" />
+
+  		<remap from="cloud_in" to="/camera/depth/points" />
   	</node> 
   	
  	<node pkg="watermellon" type="wm_local_navigation_node" name="wm_local_navigation_node" output="screen">
   		<param name="frame_id" type="string" value="map" />
-  		<param name="pointcloud_min_z" type="double" value="-0.5" /> 
+ 		<param name="pointcloud_min_z" type="double" value="-0.5" /> 
 		<param name="pointcloud_max_z" type="double" value="2.0" />
 		<param name="pointcloud_max_x" type="double" value="4.0" />
 		<param name="pointcloud_max_t_xy" type="double" value="0.3" />
@@ -61,10 +61,15 @@
 		<param name="pointcloud_max_x" type="double" value="4.0" />
 		<param name="pointcloud_max_t_xy" type="double" value="0.3" />
 		<param name="pointcloud_max_t_xz" type="double" value="0.4" />
-		<param name="locations_file" type="string" value="$(find watermellon)/maps/rockin/rockin_locations.json" />
-
   		<remap from="cloud_in" to="/camera/depth/points" />
   	</node> 
+  	
+  	
+  	<node pkg="watermellon" type="wm_bica_node" name="wm_bica" output="screen">
+		<param name="locations_file" type="string" value="$(find watermellon)/maps/rockin/rockin_locations.json" />
+		<!--<param name="init_component" type="string" value="TestSimple" />-->
+	</node>
+  
 
 	<node pkg="rviz" type="rviz" output="screen"
 		name="rviz"

@@ -5,7 +5,7 @@
  *      Author: paco
  */
 
-#include "wm_navigation/WmGlobalNavigation.h"
+#include <wm_navigation/WmGlobalNavigation.h>
 
 namespace wm_navigation{
 
@@ -31,7 +31,8 @@ WmGlobalNavigation::WmGlobalNavigation(ros::NodeHandle private_nh_)
   goal_(new geometry_msgs::PoseStamped),
   start_(new geometry_msgs::Pose),
   last_perception_(new pcl::PointCloud<pcl::PointXYZRGB>),
-  has_goal_(false)
+  has_goal_(false),
+  recalcule_path_(true)
  {
 	ros::NodeHandle private_nh(private_nh_);
 	private_nh.param("frame_id", worldFrameId_, worldFrameId_);
@@ -41,6 +42,7 @@ WmGlobalNavigation::WmGlobalNavigation(ros::NodeHandle private_nh_)
 	private_nh.param("pointcloud_max_z", pointcloudMaxZ_,pointcloudMaxZ_);
 	private_nh.param("dynamic_cost_dec", dynamic_cost_dec_,dynamic_cost_dec_);
 	private_nh.param("dynamic_cost_inc", dynamic_cost_inc_,dynamic_cost_inc_);
+
 
 	perceptSub_ = new message_filters::Subscriber<sensor_msgs::PointCloud2> (nh_, "cloud_in", 5);
 	tfPerceptSub_ = new tf::MessageFilter<sensor_msgs::PointCloud2> (*perceptSub_, tfListener_, baseFrameId_, 5);
@@ -118,9 +120,9 @@ WmGlobalNavigation::setGoalPose(const geometry_msgs::PoseStamped& goal_in)
 	*goal_ = goal_in;
 	*start_ = pose_.pose.pose;
 	has_goal_ = true;
-
-
+	recalcule_path_ = true;
 }
+
 geometry_msgs::Pose
 WmGlobalNavigation::getCurrentPose()
 {
@@ -271,7 +273,8 @@ WmGlobalNavigation::updateDynamicCostmap()
 			if(npoints>0)
 			{
 
-
+				if(dynamic_costmap_.getCost(i, j)==0)
+					recalcule_path_=true;
 				double new_cost;
 				new_cost =  dynamic_costmap_.getCost(i, j) + (dynamic_cost_inc_*total_elapsed);
 				if(new_cost>255) new_cost=255;
@@ -326,9 +329,7 @@ WmGlobalNavigation::updateGradient(int i, int j, int cost)
 
 	if(static_costmap_.getCost(i,j)>0) return;
 	if(dynamic_costmap_.getCost(i,j)>0) return;
-
-	if(goal_gradient_.getCost(i,j)<=cost)
-		return;
+	if(goal_gradient_.getCost(i,j)<=cost) return;
 
 	goal_gradient_.setCost(i,j, cost);
 
@@ -359,7 +360,7 @@ WmGlobalNavigation::updatePath()
 	updateGradient(i, j, 0);
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
-	ROS_DEBUG("UpdatePath done (%f sec)", total_elapsed);
+	ROS_INFO("UpdatePath to (%f, %f) [%d, %d] done (%f sec)",  goal_->pose.position.x,  goal_->pose.position.y, i, j, total_elapsed);
 
 }
 
@@ -376,7 +377,11 @@ WmGlobalNavigation::step()
 
 	if(has_goal_)
 	{
-		updatePath();
+		if(recalcule_path_)
+		{
+			recalcule_path_=false;
+			updatePath();
+		}
 
 		int robot_i, robot_j;
 		xy2ij(goal_gradient_, pose_.pose.pose.position.x, pose_.pose.pose.position.y, robot_i, robot_j);
@@ -418,7 +423,7 @@ WmGlobalNavigation::step()
 
 		dist2goal = sqrt((robot_x-goal_x)*(robot_x-goal_x)+(robot_y-goal_y)*(robot_y-goal_y));
 
-		ROS_DEBUG("DISTANCE2GOAL = %lf", dist2goal);
+
 		if(dist2goal<0.05)
 		{
 			goal_vector_->twist.linear.x = 0.0;

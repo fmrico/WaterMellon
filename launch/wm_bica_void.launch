@@ -1,0 +1,6 @@
+<launch>
+
+	<node pkg="watermellon" type="wm_bica_node" name="wm_bica" output="screen">
+	</node>
+
+</launch>
