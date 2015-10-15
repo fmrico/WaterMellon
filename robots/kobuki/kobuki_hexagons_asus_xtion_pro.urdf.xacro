@@ -17,8 +17,9 @@
   <!-- 3D Sensors -->
   <xacro:include filename="$(find turtlebot_description)/urdf/sensors/kinect.urdf.xacro"/>
   <xacro:include filename="$(find watermellon)/robots/kobuki/asus_xtion_pro.urdf.xacro"/>
-  
+  <xacro:include filename="$(find watermellon)/robots/kobuki/hokuyo.urdf.xacro"/>
   <kobuki/>
   <stack_hexagons         parent="base_link"/>
   <sensor_asus_xtion_pro  parent="base_link"/>
+<!--  <sensor_hokuyo 		  parent="base_link"/> -->
 </robot>

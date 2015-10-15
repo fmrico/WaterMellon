@@ -130,7 +130,7 @@ TestSimple::init(const std::string newName)
 
 	npos=0;
 	locs[0] = "bedroom";
-	locs[1] = "voidroom";
+	locs[1] = "entrance";
 	locs[2] = "kitchen";
 	locs[3] = "livingroom";
 	locs[4] = "voidroom";

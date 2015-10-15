@@ -201,10 +201,10 @@ WmGlobalNavigation::mapCallback(const sensor_msgs::PointCloud2::ConstPtr& map_in
 	dynamic_costmap_.resizeMap((map_max_x_-map_min_x_)*10, (map_max_y_-map_min_y_)*10, 0.1, map_min_x_, map_min_y_);
 	goal_gradient_.resizeMap((map_max_x_-map_min_x_)*10, (map_max_y_-map_min_y_)*10, 0.1, map_min_x_, map_min_y_);
 
-	static_costmap_.setDefaultValue(255);
+	static_costmap_.setDefaultValue(0);
 	static_costmap_.resetMap(0,0,static_costmap_.getSizeInCellsX(), static_costmap_.getSizeInCellsY());
 
-	goal_gradient_.setDefaultValue(255);
+	goal_gradient_.setDefaultValue(MAX_COST);
 	goal_gradient_.resetMap(0,0,goal_gradient_.getSizeInCellsX(), goal_gradient_.getSizeInCellsY());
 
 	dynamic_costmap_.setDefaultValue(0);
@@ -277,7 +277,7 @@ WmGlobalNavigation::updateDynamicCostmap()
 					recalcule_path_=true;
 				double new_cost;
 				new_cost =  dynamic_costmap_.getCost(i, j) + (dynamic_cost_inc_*total_elapsed);
-				if(new_cost>255) new_cost=255;
+				if(new_cost>MAX_COST) new_cost=MAX_COST;
 
 				dynamic_costmap_.setCost(i, j, new_cost);
 			}
@@ -313,35 +313,50 @@ WmGlobalNavigation::updateStaticCostmap()
 			else
 			{
 				std::sort(pointRadiusSquaredDistance.begin(), pointRadiusSquaredDistance.end());
-				static_costmap_.setCost(i, j, (1.0-(pointRadiusSquaredDistance[0]/0.3)*255));
+				static_costmap_.setCost(i, j, (1.0-(pointRadiusSquaredDistance[0]/0.3)*MAX_COST));
 			}
 
 		}
 }
 
+bool
+WmGlobalNavigation::isPath(int i, int j, int cost)
+{
+	if(i<0) return false;
+	if(i>(goal_gradient_.getSizeInCellsX()-1)) return false;
+	if(j<0) return false;
+	if(j>(goal_gradient_.getSizeInCellsY()-1)) return false;
+	if(static_costmap_.getCost(i,j)>cost) return false;
+	if(dynamic_costmap_.getCost(i,j)>cost) return false;
+
+	if(goal_gradient_.getCost(i,j)<=cost) return false;
+
+	return true;
+}
+
 void
 WmGlobalNavigation::updateGradient(int i, int j, int cost)
 {
-	if(i<0) return;
-	if(i>(goal_gradient_.getSizeInCellsX()-1)) return;
-	if(j<0) return;
-	if(j>(goal_gradient_.getSizeInCellsY()-1)) return;
 
-	if(static_costmap_.getCost(i,j)>0) return;
-	if(dynamic_costmap_.getCost(i,j)>0) return;
-	if(goal_gradient_.getCost(i,j)<=cost) return;
+	int static_cost = static_costmap_.getCost(i,j);
+	int dynamic_cost = dynamic_costmap_.getCost(i,j);
+	int gradient_cost = goal_gradient_.getCost(i,j);
 
 	goal_gradient_.setCost(i,j, cost);
 
-	updateGradient(i+1, j, cost+1);
-	updateGradient(i-1, j, cost+1);
-	updateGradient(i, j+1, cost+1);
-	updateGradient(i, j-1, cost+1);
 
-	updateGradient(i+1, j+1, cost+1);
-	updateGradient(i-1, j+1, cost+1);
-	updateGradient(i+1, j-1, cost+1);
-	updateGradient(i-1, j-1, cost+1);
+	int testcost = std::max(cost+1, static_cost+dynamic_cost);
+	int newcost = cost+1;
+
+	if(newcost>255) newcost=255;
+	if(cost>255) cost=255;
+
+	goal_gradient_.setCost(i,j, cost);
+
+	if(isPath(i+1, j, testcost)) updateGradient(i+1, j, newcost);
+	if(isPath(i-1, j, testcost)) updateGradient(i-1, j, newcost);
+	if(isPath(i, j+1, testcost)) updateGradient(i, j+1, newcost);
+	if(isPath(i, j-1, testcost)) updateGradient(i, j-1, newcost);
 
 	return;
 }
@@ -360,7 +375,7 @@ WmGlobalNavigation::updatePath()
 	updateGradient(i, j, 0);
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
-	ROS_INFO("UpdatePath to (%f, %f) [%d, %d] done (%f sec)",  goal_->pose.position.x,  goal_->pose.position.y, i, j, total_elapsed);
+	ROS_DEBUG("UpdatePath to (%f, %f) [%d, %d] done (%f sec)",  goal_->pose.position.x,  goal_->pose.position.y, i, j, total_elapsed);
 
 }
 

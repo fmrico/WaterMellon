@@ -91,6 +91,7 @@ private:
 	void updateDynamicCostmap();
 	void updatePath();
 
+	inline bool isPath(int i, int j, int cost);
 	void updateGradient(int i, int j, int cost);
 
 
@@ -112,6 +113,8 @@ private:
 	double pointcloudMaxZ_;
 	double dynamic_cost_dec_;
 	double dynamic_cost_inc_;
+
+	static const int MAX_COST=255;
 
 	geometry_msgs::PoseWithCovarianceStamped pose_;
 
