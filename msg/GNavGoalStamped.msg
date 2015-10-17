@@ -1,0 +1,5 @@
+std_msgs/Header header
+geometry_msgs/Twist gradient
+geometry_msgs/Twist final
+float32 localization_quality 
+float32 distance_goal

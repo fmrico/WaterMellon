@@ -51,6 +51,11 @@ find_package(PCL REQUIRED QUIET COMPONENTS common sample_consensus io segmentati
 #message("**Jsoncpp_INCLUDE_DIR: " ${JSONCPP_INCLUDE_DIR} )
 #message("**Jsoncpp_LIBRARY: " ${JSONCPP_LIBRARY} )
 
+add_message_files(
+   FILES
+   GNavGoalStamped.msg
+)
+
 add_service_files(
   DIRECTORY srv
   FILES GetMap.srv

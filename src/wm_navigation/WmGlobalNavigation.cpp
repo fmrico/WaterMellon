@@ -27,13 +27,13 @@ WmGlobalNavigation::WmGlobalNavigation(ros::NodeHandle private_nh_)
   static_costmap_pub_(&nh_, &static_costmap_, "/map", "/wm_navigation_static_costmap", true),
   dynamic_costmap_pub_(&nh_, &dynamic_costmap_, "/map", "/wm_navigation_dynamic_costmap", true),
   goal_gradient_pub_(&nh_, &goal_gradient_, "/map", "/wm_navigation_goal_gradient", true),
-  goal_vector_(new geometry_msgs::TwistStamped),
+  goal_vector_(new watermellon::GNavGoalStamped),
   goal_(new geometry_msgs::PoseStamped),
   start_(new geometry_msgs::Pose),
   last_perception_(new pcl::PointCloud<pcl::PointXYZRGB>),
   has_goal_(false),
   recalcule_path_(true)
- {
+{
 	ros::NodeHandle private_nh(private_nh_);
 	private_nh.param("frame_id", worldFrameId_, worldFrameId_);
 	private_nh.param("base_frame_id", baseFrameId_, baseFrameId_);
@@ -54,7 +54,7 @@ WmGlobalNavigation::WmGlobalNavigation(ros::NodeHandle private_nh_)
 
 	goal_sub_ = nh_.subscribe<geometry_msgs::PoseStamped>("/move_base_simple/goal", 1, &WmGlobalNavigation::goalCallback, this);
 	pose_sub_ = nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>("/wm_pose_cov", 1, &WmGlobalNavigation::poseCallback, this);
-	goal_vector_pub_ = nh_.advertise<geometry_msgs::TwistStamped>("/goal_vector", 1000);
+	goal_vector_pub_ = nh_.advertise<watermellon::GNavGoalStamped>("/goal_vector", 1000);
 
 
 	last_dynamic_map_update_ = ros::WallTime::now();
@@ -139,6 +139,20 @@ geometry_msgs::Pose
 WmGlobalNavigation::getEndPose()
 {
 	return goal_->pose;
+}
+
+float
+WmGlobalNavigation::getLocalizationQuality(const geometry_msgs::PoseWithCovarianceStamped& pos_info)
+{
+	float area_unc = sqrt(pos_info.pose.covariance[0]) * sqrt(pos_info.pose.covariance[1 * 6 + 1]);
+
+	if(area_unc>3.0)
+		return 0.0;
+	else if(area_unc<0.1)
+		return 1.0;
+	else
+		return ((3.0-area_unc)/3.0);
+
 }
 
 
@@ -230,7 +244,7 @@ WmGlobalNavigation::updateDynamicCostmap()
 				ROS_DEBUG("(%d, %lf)", dynamic_costmap_.getCost(i, j), new_cost);
 
 			dynamic_costmap_.setCost(i, j, new_cost); //10 unids/sec
-	}
+		}
 
 
 	tf::StampedTransform robot2MapTf;
@@ -438,63 +452,42 @@ WmGlobalNavigation::step()
 
 		dist2goal = sqrt((robot_x-goal_x)*(robot_x-goal_x)+(robot_y-goal_y)*(robot_y-goal_y));
 
+		goal_vector_->header.stamp = ros::Time::now();
+		goal_vector_->header.frame_id = worldFrameId_;
 
-		if(dist2goal<0.05)
+		goal_vector_->distance_goal = dist2goal;
+		goal_vector_->localization_quality = getLocalizationQuality(pose_);
+
+		//Gradient vector
+		for(int i=0; i<menores_i.size();++i)
 		{
-			goal_vector_->twist.linear.x = 0.0;
+			double t_x, t_y;
+			ij2xy(static_costmap_, menores_i[i], menores_j[i], t_x, t_y);
 
-			double r, p, angle2goal;
-			tf::Quaternion q1(goal_->pose.orientation.x, goal_->pose.orientation.y, goal_->pose.orientation.z, goal_->pose.orientation.w);
-			tf::Matrix3x3(q1).getRPY(r, p, angle2goal);
-
-			double robot_angle;
-			tf::Quaternion q2(pose_.pose.pose.orientation.x, pose_.pose.pose.orientation.y, pose_.pose.pose.orientation.z, pose_.pose.pose.orientation.w);
-			tf::Matrix3x3(q2).getRPY(r, p, robot_angle);
-
-			goal_vector_->twist.angular.z = normalizePi(angle2goal-robot_angle);
-
-			ROS_DEBUG("(%lf - %lf -> %lf", angle2goal, robot_angle,  normalizePi(angle2goal-robot_angle));
-
-			/*if(fabs(normalizePi(angle2goal-robot_angle))<0.1)
-			{
-				goal_vector_->twist.linear.x = 0.0;
-				goal_vector_->twist.angular.z = 0.0;
-				has_goal_=false;
-			}*/
-
-		}else
-		{
-			for(int i=0; i<menores_i.size();++i)
-			{
-				double t_x, t_y;
-				ij2xy(static_costmap_, menores_i[i], menores_j[i], t_x, t_y);
-
-				g_x = g_x + (t_x-g_x)/(i+1);
-				g_y = g_y + (t_y-g_y)/(i+1);
-			}
-
-			goal_vector_->twist.linear.x = dist2goal/5.0;
-
-
-			double angle2goal;
-			angle2goal = atan2(g_y - pose_.pose.pose.position.y, g_x - pose_.pose.pose.position.x);
-
-			double r, p, robot_angle;
-			tf::Quaternion q(pose_.pose.pose.orientation.x, pose_.pose.pose.orientation.y, pose_.pose.pose.orientation.z, pose_.pose.pose.orientation.w);
-			tf::Matrix3x3(q).getRPY(r, p, robot_angle);
-
-			goal_vector_->twist.angular.z = normalizePi(angle2goal-robot_angle);
-
-			ROS_DEBUG("GLOBAL VECTOR = (%lf, %lf)", goal_vector_->twist.linear.x, goal_vector_->twist.angular.z);
+			g_x = g_x + (t_x-g_x)/(i+1);
+			g_y = g_y + (t_y-g_y)/(i+1);
 		}
 
+		double r, p, robot_angle;
+		double angle2goal;
 
+		goal_vector_->gradient.linear.x = dist2goal;
+		if(goal_vector_->gradient.linear.x>1.0) goal_vector_->gradient.linear.x=1.0;
+		angle2goal = atan2(g_y - pose_.pose.pose.position.y, g_x - pose_.pose.pose.position.x);
+		tf::Quaternion q(pose_.pose.pose.orientation.x, pose_.pose.pose.orientation.y, pose_.pose.pose.orientation.z, pose_.pose.pose.orientation.w);
+		tf::Matrix3x3(q).getRPY(r, p, robot_angle);
+		goal_vector_->gradient.angular.z = normalizePi(angle2goal-robot_angle);
 
+		//Final vector
+		goal_vector_->final.linear.x = 0.0;
+		tf::Quaternion q1(goal_->pose.orientation.x, goal_->pose.orientation.y, goal_->pose.orientation.z, goal_->pose.orientation.w);
+		tf::Matrix3x3(q1).getRPY(r, p, angle2goal);
+		tf::Quaternion q2(pose_.pose.pose.orientation.x, pose_.pose.pose.orientation.y, pose_.pose.pose.orientation.z, pose_.pose.pose.orientation.w);
+		tf::Matrix3x3(q2).getRPY(r, p, robot_angle);
 
-	}else{
-		goal_vector_->twist.linear.x = 0.0;
-		goal_vector_->twist.angular.z = 0.0;
+		goal_vector_->final.angular.z = normalizePi(angle2goal-robot_angle);
 
+		publish_goal();
 	}
 
 
@@ -511,7 +504,6 @@ WmGlobalNavigation::publish_all()
 	publish_static_map();
 	publish_dynamic_map();
 	publish_gradient();
-	if(has_goal_) publish_goal();
 }
 
 void

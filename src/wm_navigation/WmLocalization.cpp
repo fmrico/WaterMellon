@@ -19,7 +19,7 @@ WmLocalization::WmLocalization(ros::NodeHandle private_nh_)
   pointcloudMaxTxz_(M_PI),
   res_(0.05),
   numparticles_min_(30),
-  numparticles_max_(300),
+  numparticles_max_(200),
   correctpoints_(20),
   odomerror_(0.15),
   doResetParticles_(true),
@@ -342,7 +342,7 @@ WmLocalization::resetParticleNear(Particle& p2reset, const Particle& pref)
 
 	setParticle(p2reset, x, y, newt);
 
-	p2reset.p_ = 1.0/(float)particles_.size();
+	p2reset.p_ = pref.p_;//1.0/(float)particles_.size();
 }
 
 void
@@ -468,11 +468,11 @@ WmLocalization::step()
 	ROS_DEBUG("Correct");
 	correct();
 
-	ROS_DEBUG("Reseed");
-	reseed();
-
 	ROS_DEBUG("Normlize");
 	normalize();
+
+	ROS_DEBUG("Reseed");
+	reseed();
 
 	ROS_DEBUG("Updating Pos");
 	updatePos();
@@ -649,7 +649,7 @@ WmLocalization::updateParticle(Particle& p, const std::vector<pcl::PointXYZRGB>&
 		temp = temp + doTestPcl(testpoint);
 	}
 
-	p.p_ = (p.p_ + temp/correctpoints_)/2.0f;
+	p.p_ = 0.8*p.p_ + 0.2 * (temp/correctpoints_);
 
 	if(p.p_>1.0) p.p_=1.0;
 
@@ -725,14 +725,19 @@ WmLocalization::reseed()
 		particles_.erase(particles_.end()-del_p, particles_.end());
 	}
 
+	int idx_25 = particles_.size()*25/100;
 	int idx_50 = particles_.size()*50/100;
 	int idx_75 = particles_.size()*75/100;
 
 	for(int i=idx_50; i<idx_75;i++)
 		resetParticleUniform(particles_[i]);
 
+	int c=0;
 	for(int i=idx_75; i<particles_.size();i++)
-		resetParticleNear(particles_[i], particles_[0]);
+	{
+		resetParticleNear(particles_[i], particles_[c]);
+		c = (c+1)%idx_25;
+	}
 
 
 

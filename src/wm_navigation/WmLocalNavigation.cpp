@@ -10,104 +10,145 @@
 namespace wm_navigation{
 
 
-WmLocalNavigation::WmLocalNavigation(ros::NodeHandle private_nh_)
-: m_nh(),
-  m_pointcloudMinZ(0.2),
-  m_pointcloudMaxZ(0.5),
-  robot_radious(0.3),
-  max_w(0.15),
-  max_v(0.2),
-  collision_area(1.0),
-  m_worldFrameId("/map"), m_baseFrameId("base_footprint"),
-  m_tfListener(),
-  //last_perception(new pcl::PointCloud<pcl::PointXYZRGB>),
-  global_vector(new geometry_msgs::TwistStamped),
-  resultant_vector(new geometry_msgs::TwistStamped),
-  //repulsive_vector(new geometry_msgs::PoseStamped),
-  m_res(0.2)
+WmLocalNavigation::WmLocalNavigation(ros::NodeHandle private_nh)
+: nh_(),
+  robot_radious_(0.3),
+  max_w_(0.15),
+  max_v_(0.2),
+  collision_area_(1.0),
+  worldFrameId_("/map"), baseFrameId_("base_footprint"),
+  tfListener_(),
+  atractive_vector_(new geometry_msgs::TwistStamped),
+  resultant_vector_(new geometry_msgs::TwistStamped),
+  repulsive_vector_(new geometry_msgs::TwistStamped),
+  goal_(new watermellon::GNavGoalStamped),
+  state_(FINISHED)
 {
-	ros::NodeHandle private_nh(private_nh_);
-	private_nh.param("frame_id", m_worldFrameId, m_worldFrameId);
-	private_nh.param("base_frame_id", m_baseFrameId, m_baseFrameId);
-	private_nh.param("robot_radious", robot_radious, robot_radious);
-	private_nh.param("collision_area", collision_area, collision_area);
+	private_nh.param("frame_id", worldFrameId_, worldFrameId_);
+	private_nh.param("base_frame_id", baseFrameId_, baseFrameId_);
+	private_nh.param("robot_radious", robot_radious_, robot_radious_);
+	private_nh.param("collision_area", collision_area_, collision_area_);
 
 
-	/*m_perceptSub = new message_filters::Subscriber<sensor_msgs::PointCloud2> (m_nh, "cloud_in", 5);
-	m_tfPerceptSub = new tf::MessageFilter<sensor_msgs::PointCloud2> (*m_perceptSub, m_tfListener, m_baseFrameId, 5);
-	m_tfPerceptSub->registerCallback(boost::bind(&WmLocalNavigation::perceptionCallback, this, _1));
-	 */
-	goal_sub = m_nh.subscribe<geometry_msgs::TwistStamped>("/goal_vector", 1000, &WmLocalNavigation::gvectorCallback, this);
+	scanSub_ = new message_filters::Subscriber<sensor_msgs::LaserScan> (nh_, "scan", 5);
+	tfScanSub_ = new tf::MessageFilter<sensor_msgs::LaserScan> (*scanSub_, tfListener_, baseFrameId_, 5);
+	tfScanSub_->registerCallback(boost::bind(&WmLocalNavigation::scanCallback, this, _1));
 
-	//repulsive_vector_pub = m_nh.advertise<geometry_msgs::PoseStamped>("/repulsive_vector", 1000);
-	resultant_vector_pub = m_nh.advertise<geometry_msgs::PoseStamped>("/resultant_vector", 1000);
+	goal_sub_ = nh_.subscribe<watermellon::GNavGoalStamped>("/goal_vector", 1000, &WmLocalNavigation::gvectorCallback, this);
 
-	vel_pub = m_nh.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity", 1000);
-	//	if( ros::console::set_logger_level(ROSCONSOLE_DEFAULT_NAME, ros::console::levels::Debug) )
-	//		ros::console::notifyLoggerLevelsChanged();
+	repulsive_vector_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/repulsive_vector", 1000);
+	resultant_vector_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/resultant_vector", 1000);
+	atractive_vector_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("/atractive_vector", 1000);
 
-
+	vel_pub_ = nh_.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity", 1000);
+	atractive_vector_->header.stamp.init();
 }
 
 WmLocalNavigation::~WmLocalNavigation() {
 
 }
 
-/*
+
+
 void
-WmLocalNavigation::perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
+WmLocalNavigation::scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 {
-	ros::WallTime startTime = ros::WallTime::now();
+	float o_t_min, o_t_max, o_t_inc;
 
-	pcl::PCLPointCloud2::Ptr cloud (new pcl::PCLPointCloud2 ());
-	pcl::PCLPointCloud2::Ptr cloud_filtered (new pcl::PCLPointCloud2 ());
+	o_t_min = scan_in->angle_min;
+	o_t_max = scan_in->angle_max;
+	o_t_inc = scan_in->angle_increment;
 
-	pcl_conversions::toPCL(*cloud_in, *cloud);
+	int num_points = (int)2.0*o_t_max/o_t_inc;
 
-	pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
-	sor.setInputCloud (cloud);
-	sor.setLeafSize (m_res, m_res, m_res);
-	sor.filter (*cloud_filtered);
+	tf::Stamped<tf::Point> scan_sensor[num_points];
+	tf::Stamped<tf::Point> scan_bf[num_points];
 
-	pcl::fromPCLPointCloud2 (*cloud_filtered, *last_perception);
+	float rx=0.0, ry=0.0;
+	int c=0;
 
-	tf::StampedTransform sensorToBaseTf;
-	try {
-		m_tfListener.lookupTransform(m_baseFrameId, cloud_in->header.frame_id, cloud_in->header.stamp, sensorToBaseTf);
-	} catch(tf::TransformException& ex){
-		ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
-		return;
+	for(int i=0; i<num_points; i++)
+	{
+		float theta = o_t_min+i*o_t_inc;
+		float r = scan_in->ranges[i];
+		float m = collision_area_ - scan_in->ranges[i];
+
+		scan_sensor[i].setX(m*cos(theta+M_PI));
+		scan_sensor[i].setY(m*sin(theta+M_PI));
+		scan_sensor[i].setZ(0.0);
+		scan_sensor[i].setW(1.0);
+		scan_sensor[i].stamp_ = scan_in->header.stamp;
+		scan_sensor[i].frame_id_ = scan_in->header.frame_id;
+
+		tfListener_.transformPoint(baseFrameId_, scan_sensor[i], scan_bf[i]);
+
+		if(scan_in->ranges[i]<collision_area_)
+		{
+			rx = rx +  scan_sensor[i].getX();
+			ry = ry +  scan_sensor[i].getY();
+			c++;
+		}
+
 	}
 
-	Eigen::Matrix4f sensorToBase;
-	pcl_ros::transformAsMatrix(sensorToBaseTf, sensorToBase);
+	if(c>0)
+	{
+		rx = rx/c;
+		ry = ry/c;
+	}
 
-	pcl::PassThrough<pcl::PointXYZRGB> pass;
-	pass.setFilterFieldName("z");
-	pass.setFilterLimits(m_pointcloudMinZ, m_pointcloudMaxZ);
+	repulsive_vector_->header.frame_id = baseFrameId_;
+	repulsive_vector_->header.stamp = scan_in->header.stamp;
 
-	// directly transform to map frame:
-	pcl::transformPointCloud(*last_perception, *last_perception, sensorToBase);
+	repulsive_vector_->twist.linear.x = sqrt(rx*rx+ry*ry);
+	repulsive_vector_->twist.linear.y = 0.0;
+	repulsive_vector_->twist.linear.z = 0.0;
+	repulsive_vector_->twist.angular.x = 0.0;
+	repulsive_vector_->twist.angular.y = 0.0;
+	repulsive_vector_->twist.angular.z = atan2(ry, rx);
 
-	// just filter height range:
-	pass.setInputCloud(last_perception->makeShared());
-	pass.filter(*last_perception);
-
-	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
-
-	return;
 }
 
- */
 void
-WmLocalNavigation::gvectorCallback(const geometry_msgs::TwistStamped::ConstPtr& gvector_in)
+WmLocalNavigation::gvectorCallback(const watermellon::GNavGoalStamped::ConstPtr& gvector_in)
 {
 
 	ROS_DEBUG("Global Vector received");
-	*global_vector = *gvector_in;
+	*goal_ = *gvector_in;
 
 }
 
+void
+WmLocalNavigation::addVectors(geometry_msgs::Twist& v1, const geometry_msgs::Twist& v2)
+{
+
+
+	//ROS_INFO("(%lf, %lf) += (%lf, %lf)", v1->twist.linear.x, v1->twist.angular.z, v2->twist.linear.x, v2->twist.angular.z);
+
+	if(fabs(v2.linear.x)>0.00001)
+	{
+		//ROS_INFO("CASO 1");
+		float x1, x2, y1, y2;
+
+		x1 = v1.linear.x * cos(v1.angular.z);
+		y1 = v1.linear.x * sin(v1.angular.z);
+		x2 = v2.linear.x * cos(v2.angular.z);
+		y2 = v2.linear.x * sin(v2.angular.z);
+
+		float xr, yr;
+		xr = x1+x2;
+		yr = y1+y2;
+
+
+		v1.linear.x = sqrt (xr*xr+yr*yr);
+		v1.angular.z = atan2(yr, xr);
+	}else
+	{
+		//ROS_INFO("CASO 2");
+		//v1->twist.linear.x = v2->twist.linear.x;
+		v1.angular.z = normalizePi(v1.angular.z + v2.angular.z);
+	}
+}
 
 void
 WmLocalNavigation::step()
@@ -116,154 +157,111 @@ WmLocalNavigation::step()
 	ros::WallTime startTime = ros::WallTime::now();
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 
-	/*
-	pcl::PointCloud<pcl::PointXYZRGB>::iterator it;
+	resultant_vector_->header.frame_id = baseFrameId_;
+	resultant_vector_->header.stamp = ros::Time::now();
+	resultant_vector_->twist.linear.x = 0.0;
+	resultant_vector_->twist.linear.y = 0.0;
+	resultant_vector_->twist.linear.z = 0.0;
+	resultant_vector_->twist.angular.x = 0.0;
+	resultant_vector_->twist.angular.y = 0.0;
+	resultant_vector_->twist.angular.z = 0.0;
 
-	float r_x, r_y;
-	int count =0;
-	r_x = 0.0;
-	r_y = 0.0;
+	geometry_msgs::Twist vel;
 
-	for(it=last_perception->begin();it!=last_perception->end(); ++it)
-	{
+	switch(state_){
 
-		float dist, rvector, ang;
+	case FAR:
 
-		dist= sqrt(it->x*it->x+it->y*it->y);
-		ang = atan2(it->y, it->x)+ M_PI;
-
-		if(ang>M_PI) ang = ang - 2.0*M_PI;
-
-		if(dist<collision_area)
-		{
-
-			rvector = 1.0 - ((dist-robot_radious)/(collision_area-robot_radious));
-			//rvector = pow((dist - robot_radious) - collision_area, 2.0)/ (robot_radious*robot_radious);
-			//std::cerr<<"Dist = "<<dist<<"\tfr = "<<rvector<<std::endl;
-
-			count++;
-			r_x = r_x + (rvector*cos(ang)-r_x)/(count);
-			r_y = r_y + (rvector*sin(ang)-r_y)/(count);
-		}
-
-	}
-
-	std::cerr<<"REPULSIVE = ("<<r_x<<", "<<r_y<<")"<<std::endl;
-
-	r_x = r_x * 2.0;
-	r_y = r_y * 2.0;
-
-	 /*
-	double ax, ay;
-	double roll, pitch, yaw;
-	tf::Quaternion q(global_vector->pose.orientation.x, global_vector->pose.orientation.y,
-			global_vector->pose.orientation.z, global_vector->pose.orientation.w);
-	tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
-
-	global_vector->twist.angular.z
-
-	ax = cos(global_vector->twist.angular.z);
-	ay = sin(global_vector->twist.angular.z);
-
-	std::cerr<<"ATRACTIVE = ("<<ax<<", "<<ay<<")"<<std::endl;
-
-	double resx, resy;
-
-	resx = ax;//(ax + r_x)/2.0;
-	resy = ay;//(ay + r_y)/2.0;
-
-	std::cerr<<"RES = ("<<resx<<", "<<resy<<")"<<std::endl;
-
-	 */
-
-	/*tf::Quaternion qrep;
-	qrep.setEuler(0.0, 0.0, atan2(r_y, r_x));
-	repulsive_vector->pose.position.x = 0.0f;
-	repulsive_vector->pose.position.y = 0.0f;
-	repulsive_vector->pose.position.z = 0.0f;
-	repulsive_vector->pose.orientation.x = qrep.getX();
-	repulsive_vector->pose.orientation.y = qrep.getY();
-	repulsive_vector->pose.orientation.z = qrep.getZ();
-	repulsive_vector->pose.orientation.w = qrep.getW();
-	 */
-	/*tf::Quaternion qres;
-	qres.setEuler(0.0, 0.0, atan2(resy, resx));
-	resultant_vector->pose.position.x = 0.0f;
-	resultant_vector->pose.position.y = 0.0f;
-	resultant_vector->pose.position.z = 0.0f;
-	resultant_vector->pose.orientation.x = qres.getX();
-	resultant_vector->pose.orientation.y = qres.getY();
-	resultant_vector->pose.orientation.z = qres.getZ();
-	resultant_vector->pose.orientation.w = qres.getW();
-
-
-	if(!std::isnan(resy))
-	{
-		geometry_msgs::Twist vel;
+		ROS_DEBUG("FAR");
+		if(goal_->distance_goal<0.7)
+			state_=NEAR;
 
 
 
-		if(fabs(atan2(resy, resx))>0.5)
+		if((ros::Time::now() - goal_->header.stamp) < ros::Duration(1.0))
+			addVectors(resultant_vector_->twist, goal_->gradient);
+		if((ros::Time::now() - repulsive_vector_->header.stamp ) < ros::Duration(1.0))
+			addVectors(resultant_vector_->twist, repulsive_vector_->twist);
+
+		if(fabs(resultant_vector_->twist.angular.z) > M_PI/4.0)
 		{
 			vel.linear.x = 0.0;
-			vel.angular.z = atan2(resy, resx);
+			vel.angular.z = resultant_vector_->twist.angular.z;
 		}else
 		{
-			vel.linear.x = resx;
-			vel.angular.z = atan2(resy, resx);
+			vel.linear.x = resultant_vector_->twist.linear.x;
+			vel.angular.z = resultant_vector_->twist.angular.z;
 		}
 
+		ROS_DEBUG("REPULSIVE = (%lf, %lf)", repulsive_vector_->twist.linear.x, repulsive_vector_->twist.angular.z);
+		ROS_DEBUG("ATRACTIVE = (%lf, %lf)", atractive_vector_->twist.linear.x, atractive_vector_->twist.angular.z);
+		ROS_DEBUG("RESULTANT = (%lf, %lf)", resultant_vector_->twist.linear.x, resultant_vector_->twist.angular.z);
 
-		if(vel.angular.z>max_w)
-			vel.angular.z = max_w;
-		if(vel.angular.z<-max_w)
-			vel.angular.z = -max_w;
-		if(vel.linear.x > max_v)
-			vel.linear.x = max_v;
-		if(vel.linear.x < -max_v)
-			vel.linear.x = -max_v;
 
-		vel_pub.publish(vel);
-	}
+		break;
+	case NEAR:
+		ROS_DEBUG("NEAR");
+		if(goal_->distance_goal<0.15)
+			state_=TURNING;
+		else if(goal_->distance_goal>0.8)
+			state_=FAR;
 
-	 */
+		if((ros::Time::now() - goal_->header.stamp) < ros::Duration(1.0))
+			addVectors(resultant_vector_->twist, goal_->gradient);
 
-	if(fabs(global_vector->twist.linear.x)>0.001 || fabs(global_vector->twist.angular.z>0.001))
-	{
-		geometry_msgs::Twist vel;
-		//vel = global_vector->twist;
-
-		if(fabs(global_vector->twist.angular.z) > 0.5)
+		if(fabs(resultant_vector_->twist.angular.z) > M_PI/4.0)
 		{
 			vel.linear.x = 0.0;
-			vel.angular.z = global_vector->twist.angular.z;
+			vel.angular.z = resultant_vector_->twist.angular.z;
 		}else
 		{
-			vel.linear.x = global_vector->twist.linear.x;
-			vel.angular.z = global_vector->twist.angular.z;
+			vel.linear.x = resultant_vector_->twist.linear.x;
+			vel.angular.z = resultant_vector_->twist.angular.z;
 		}
 
-		if(vel.angular.z>max_w)
-			vel.angular.z = max_w;
-		if(vel.angular.z<-max_w)
-			vel.angular.z = -max_w;
-		if(vel.linear.x > max_v)
-			vel.linear.x = max_v;
-		if(vel.linear.x < -max_v)
-			vel.linear.x = -max_v;
-		vel_pub.publish(vel);
-		ROS_DEBUG("LOCAL VEL = (%lf, %lf)", vel.linear.x, vel.angular.z);
-	}else
-	{
-		ROS_DEBUG("LOCAL VEL = (%lf, %lf)", global_vector->twist.linear.x, global_vector->twist.angular.z);
-		vel_pub.publish(global_vector->twist);
+		break;
+	case TURNING:
+		ROS_DEBUG("TURNING");
+		if(goal_->distance_goal>0.3)
+			state_=NEAR;
+		else if(fabs(goal_->final.angular.z) < 0.17)
+			state_=FINISHED;
+
+		vel.linear.x = 0.0;
+		vel.angular.z = goal_->final.angular.z;
+
+		break;
+	case FINISHED:
+		ROS_DEBUG("FINISHED");
+		if(goal_->distance_goal>0.8)
+			state_=FAR;
+		else if(goal_->distance_goal>0.3)
+			state_=NEAR;
+		else if(fabs(goal_->final.angular.z) > 0.25)
+			state_=TURNING;
+
+		vel.linear.x = 0.0;
+		vel.angular.z = 0.0;
+		break;
 	}
 
 
-	//vel.linear.x = global_vector->twist.linear.x;
-	//vel. = global_vector->twist.linear.x;
+	if(vel.angular.z>max_w_)
+		vel.angular.z = max_w_;
+	if(vel.angular.z<-max_w_)
+		vel.angular.z = -max_w_;
+	if(vel.linear.x > max_v_)
+		vel.linear.x = max_v_;
+	if(vel.linear.x < -max_v_)
+		vel.linear.x = -max_v_;
 
+	if(goal_->localization_quality<0.9)
+	{
+		vel.angular.z = vel.angular.z/3.0;
+		vel.linear.x = vel.linear.x/3.0;
+	}
 
+	vel_pub_.publish(vel);
 
 	ROS_DEBUG("LocalNavigation done (%f sec)", total_elapsed);
 
@@ -277,26 +275,34 @@ WmLocalNavigation::publish_all()
 {
 
 	publish_resultant_vector();
-	//publish_repulsive_vector();
+	publish_repulsive_vector();
+	publish_atractive_vector();
 }
 
-/*
 void
 WmLocalNavigation::publish_repulsive_vector()
 {
-	repulsive_vector->header.frame_id = m_baseFrameId;
-	repulsive_vector->header.stamp = ros::Time::now();
+	if(repulsive_vector_pub_.getNumSubscribers() == 0) return;
 
-	repulsive_vector_pub.publish(repulsive_vector);
+	repulsive_vector_pub_.publish(repulsive_vector_);
 
-}*/
+}
+
+void
+WmLocalNavigation::publish_atractive_vector()
+{
+	if(atractive_vector_pub_.getNumSubscribers() == 0) return;
+
+	atractive_vector_pub_.publish(repulsive_vector_);
+
+}
+
 void
 WmLocalNavigation::publish_resultant_vector()
 {
-	resultant_vector->header.frame_id = m_baseFrameId;
-	resultant_vector->header.stamp = ros::Time::now();
+	if(resultant_vector_pub_.getNumSubscribers() == 0) return;
 
-	resultant_vector_pub.publish(resultant_vector);
+	resultant_vector_pub_.publish(resultant_vector_);
 
 }
 

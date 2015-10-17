@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot name="sensor_hokuyo" xmlns:xacro="http://ros.org/wiki/xacro">
-  <xacro:include filename="$(find turtlebot_description)/urdf/turtlebot_gazebo.urdf.xacro"/>
+  <xacro:include filename="$(find watermellon)/robots/kobuki/turtlebot_gazebo.urdf.xacro"/>
   <xacro:include filename="$(find turtlebot_description)/urdf/turtlebot_properties.urdf.xacro"/>
 
   <!-- Hokuyo 2D LIDAR -->

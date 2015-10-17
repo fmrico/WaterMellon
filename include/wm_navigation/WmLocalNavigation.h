@@ -55,6 +55,11 @@
 #include <costmap_2d/costmap_2d_publisher.h>
 #include <geometry_msgs/TwistStamped.h>
 #include <geometry_msgs/Twist.h>
+#include <sensor_msgs/LaserScan.h>
+#include <tf/tf.h>
+
+#include <wm_navigation/Utilities.h>
+#include <watermellon/GNavGoalStamped.h>
 
 namespace wm_navigation {
 
@@ -62,51 +67,57 @@ namespace wm_navigation {
 class WmLocalNavigation {
 public:
 
-	WmLocalNavigation(ros::NodeHandle private_nh_ = ros::NodeHandle("~"));
+	WmLocalNavigation(ros::NodeHandle private_nh = ros::NodeHandle("~"));
 	virtual ~WmLocalNavigation();
 
-	virtual void gvectorCallback(const geometry_msgs::TwistStamped::ConstPtr& gvector_in);
-	//virtual void perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in);
+	virtual void gvectorCallback(const watermellon::GNavGoalStamped::ConstPtr& gvector_in);
+	virtual void scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_in);
 
 	virtual void step();
 
 private:
 
 	void publish_all();
-	//void publish_repulsive_vector();
+	void publish_repulsive_vector();
 	void publish_resultant_vector();
+	void publish_atractive_vector();
 
-	ros::NodeHandle m_nh;
-	tf::TransformListener m_tfListener;
+	void addVectors(geometry_msgs::Twist& v1, const geometry_msgs::Twist& v2);
+	ros::NodeHandle nh_;
+	tf::TransformListener tfListener_;
 
-	//tf::MessageFilter<sensor_msgs::PointCloud2>* m_tfPerceptSub;
-	//message_filters::Subscriber<sensor_msgs::PointCloud2>* m_perceptSub;
+	tf::MessageFilter<sensor_msgs::LaserScan>* tfScanSub_;
+	message_filters::Subscriber<sensor_msgs::LaserScan>* scanSub_;
 
-	ros::Subscriber goal_sub;
-	ros::Publisher vel_pub;
+	ros::Subscriber goal_sub_;
+	ros::Publisher vel_pub_;
 
-	//pcl::PointCloud<pcl::PointXYZRGB>::Ptr last_perception;
+	double robot_radious_;
+	double collision_area_;
+	double max_w_;
+	double max_v_;
 
-	double m_pointcloudMinZ;
-	double m_pointcloudMaxZ;
-	double m_res;
-	double robot_radious;
-	double collision_area;
-	double max_w;
-	double max_v;
+	std::string worldFrameId_;
+	std::string baseFrameId_;
 
-	std::string m_worldFrameId;
-	std::string m_baseFrameId;
+	watermellon::GNavGoalStamped::Ptr goal_;
 
-	geometry_msgs::TwistStamped::Ptr global_vector;
-	geometry_msgs::TwistStamped::Ptr resultant_vector;
-	//geometry_msgs::PoseStamped::Ptr repulsive_vector;
+	geometry_msgs::TwistStamped::Ptr repulsive_vector_;
+	geometry_msgs::TwistStamped::Ptr resultant_vector_;
+	geometry_msgs::TwistStamped::Ptr atractive_vector_;
 
 
-	//ros::Publisher repulsive_vector_pub;
-	ros::Publisher resultant_vector_pub;
+	ros::Publisher atractive_vector_pub_;
+	ros::Publisher repulsive_vector_pub_;
+	ros::Publisher resultant_vector_pub_;
 
-	bool has_goal;
+	static const int FAR = 0;
+	static const int NEAR = 1;
+	static const int TURNING = 2;
+	static const int FINISHED = 3;
+
+	int state_;
+
 };
 
 }

@@ -56,6 +56,7 @@
 #include <costmap_2d/costmap_2d_publisher.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <wm_navigation/Utilities.h>
+#include <watermellon/GNavGoalStamped.h>
 
 
 namespace wm_navigation {
@@ -94,6 +95,7 @@ private:
 	inline bool isPath(int i, int j, int cost);
 	void updateGradient(int i, int j, int cost);
 
+	float getLocalizationQuality(const geometry_msgs::PoseWithCovarianceStamped& pos_info);
 
 	ros::NodeHandle nh_;
 	tf::TransformListener tfListener_;
@@ -137,7 +139,7 @@ private:
 	std::vector<geometry_msgs::PoseStamped> plan_;
 	geometry_msgs::PoseStamped::Ptr goal_;
 	geometry_msgs::Pose::Ptr start_;
-	geometry_msgs::TwistStamped::Ptr goal_vector_;
+	watermellon::GNavGoalStamped::Ptr goal_vector_;
 
 
 	ros::Publisher goal_vector_pub_;
