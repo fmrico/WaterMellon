@@ -342,7 +342,7 @@ WmLocalization::resetParticleNear(Particle& p2reset, const Particle& pref)
 
 	setParticle(p2reset, x, y, newt);
 
-	p2reset.p_ = pref.p_;//1.0/(float)particles_.size();
+	p2reset.p_ = 1.0/(float)particles_.size();
 }
 
 void

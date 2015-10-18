@@ -15,6 +15,7 @@ WmGlobalNavigation::WmGlobalNavigation(ros::NodeHandle private_nh_)
   pointcloudMinZ_(0.2),
   pointcloudMaxZ_(0.5),
   worldFrameId_("/map"), baseFrameId_("base_footprint"),
+  robot_radious_(0.18),
   map_(new pcl::octree::OctreePointCloudSearch<pcl::PointXYZRGB>(128.0f)),
   map_max_x_(1.0), map_min_x_(0.0), map_max_y_(1.0), map_min_y_(0.0),
   res_(0.05),
@@ -42,6 +43,7 @@ WmGlobalNavigation::WmGlobalNavigation(ros::NodeHandle private_nh_)
 	private_nh.param("pointcloud_max_z", pointcloudMaxZ_,pointcloudMaxZ_);
 	private_nh.param("dynamic_cost_dec", dynamic_cost_dec_,dynamic_cost_dec_);
 	private_nh.param("dynamic_cost_inc", dynamic_cost_inc_,dynamic_cost_inc_);
+	private_nh.param("robot_radious", robot_radious_, robot_radious_);
 
 
 	perceptSub_ = new message_filters::Subscriber<sensor_msgs::PointCloud2> (nh_, "cloud_in", 5);
@@ -320,7 +322,7 @@ WmGlobalNavigation::updateStaticCostmap()
 
 			int npoints;
 
-			npoints = map_->radiusSearch(gridPoint, 0.3, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+			npoints = map_->radiusSearch(gridPoint, robot_radious_*1.5, pointIdxRadiusSearch, pointRadiusSquaredDistance);
 
 			if(npoints==0)
 				static_costmap_.setCost(i, j, 0);

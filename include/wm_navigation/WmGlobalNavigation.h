@@ -115,6 +115,7 @@ private:
 	double pointcloudMaxZ_;
 	double dynamic_cost_dec_;
 	double dynamic_cost_inc_;
+	double robot_radious_;
 
 	static const int MAX_COST=255;
 

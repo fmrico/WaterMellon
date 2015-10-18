@@ -82,6 +82,8 @@ private:
 	void publish_resultant_vector();
 	void publish_atractive_vector();
 
+	void checkSafeVel(geometry_msgs::Twist& v);
+
 	void addVectors(geometry_msgs::Twist& v1, const geometry_msgs::Twist& v2);
 	ros::NodeHandle nh_;
 	tf::TransformListener tfListener_;
@@ -110,6 +112,9 @@ private:
 	ros::Publisher atractive_vector_pub_;
 	ros::Publisher repulsive_vector_pub_;
 	ros::Publisher resultant_vector_pub_;
+
+	std::vector<tf::Stamped<tf::Point> > scan_bf;
+
 
 	static const int FAR = 0;
 	static const int NEAR = 1;

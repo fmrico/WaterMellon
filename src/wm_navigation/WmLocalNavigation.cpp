@@ -12,15 +12,16 @@ namespace wm_navigation{
 
 WmLocalNavigation::WmLocalNavigation(ros::NodeHandle private_nh)
 : nh_(),
-  robot_radious_(0.3),
+  robot_radious_(0.177),
   max_w_(0.15),
   max_v_(0.2),
-  collision_area_(1.0),
+  collision_area_(0.5),
   worldFrameId_("/map"), baseFrameId_("base_footprint"),
   tfListener_(),
   atractive_vector_(new geometry_msgs::TwistStamped),
   resultant_vector_(new geometry_msgs::TwistStamped),
   repulsive_vector_(new geometry_msgs::TwistStamped),
+  scan_bf(),
   goal_(new watermellon::GNavGoalStamped),
   state_(FINISHED)
 {
@@ -62,7 +63,7 @@ WmLocalNavigation::scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	int num_points = (int)2.0*o_t_max/o_t_inc;
 
 	tf::Stamped<tf::Point> scan_sensor[num_points];
-	tf::Stamped<tf::Point> scan_bf[num_points];
+	scan_bf.resize(num_points);
 
 	float rx=0.0, ry=0.0;
 	int c=0;
@@ -71,10 +72,9 @@ WmLocalNavigation::scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	{
 		float theta = o_t_min+i*o_t_inc;
 		float r = scan_in->ranges[i];
-		float m = collision_area_ - scan_in->ranges[i];
 
-		scan_sensor[i].setX(m*cos(theta+M_PI));
-		scan_sensor[i].setY(m*sin(theta+M_PI));
+		scan_sensor[i].setX(r*cos(theta));
+		scan_sensor[i].setY(r*sin(theta));
 		scan_sensor[i].setZ(0.0);
 		scan_sensor[i].setW(1.0);
 		scan_sensor[i].stamp_ = scan_in->header.stamp;
@@ -84,12 +84,12 @@ WmLocalNavigation::scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 
 		if(scan_in->ranges[i]<collision_area_)
 		{
-			rx = rx +  scan_sensor[i].getX();
-			ry = ry +  scan_sensor[i].getY();
+			rx = rx + -scan_bf[i].getX();// -(collision_area_-scan_bf[i].getX());
+			ry = ry + -scan_bf[i].getY();// -(collision_area_-scan_bf[i].getY());
 			c++;
 		}
-
 	}
+
 
 	if(c>0)
 	{
@@ -97,10 +97,12 @@ WmLocalNavigation::scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 		ry = ry/c;
 	}
 
+
 	repulsive_vector_->header.frame_id = baseFrameId_;
 	repulsive_vector_->header.stamp = scan_in->header.stamp;
 
-	repulsive_vector_->twist.linear.x = sqrt(rx*rx+ry*ry);
+	float m = sqrt(rx*rx+ry*ry);
+	repulsive_vector_->twist.linear.x = m*m;
 	repulsive_vector_->twist.linear.y = 0.0;
 	repulsive_vector_->twist.linear.z = 0.0;
 	repulsive_vector_->twist.angular.x = 0.0;
@@ -151,6 +153,41 @@ WmLocalNavigation::addVectors(geometry_msgs::Twist& v1, const geometry_msgs::Twi
 }
 
 void
+WmLocalNavigation::checkSafeVel(geometry_msgs::Twist& v)
+{
+	if(scan_bf.empty() || (scan_bf[0].stamp_-ros::Time::now()>ros::Duration(1.0)))
+	{
+		ROS_DEBUG("NO Scan Data");
+		return;
+	}else
+	{
+		ROS_DEBUG("Scan Data available");
+
+		if(v.linear.x > 0.0)
+		{
+			std::vector<tf::Stamped<tf::Point> >::iterator it;
+
+			for(it=scan_bf.begin(); it<scan_bf.end(); ++it)
+			{
+				float dist=sqrt(it->x()*it->x()+it->y()*it->y());
+
+				if((fabs(it->y())<robot_radious_) && (dist>robot_radious_) && (dist<robot_radious_*1.5))
+				{
+					ROS_WARN("Collision detected by laser at %lf %lf", it->x(), it->y());
+
+					v.linear.x = 0.0;
+					break;
+				}
+			}
+		}
+		return;
+	}
+}
+
+
+
+
+void
 WmLocalNavigation::step()
 {
 
@@ -168,6 +205,8 @@ WmLocalNavigation::step()
 
 	geometry_msgs::Twist vel;
 
+	atractive_vector_->twist = goal_->gradient;
+
 	switch(state_){
 
 	case FAR:
@@ -179,7 +218,7 @@ WmLocalNavigation::step()
 
 
 		if((ros::Time::now() - goal_->header.stamp) < ros::Duration(1.0))
-			addVectors(resultant_vector_->twist, goal_->gradient);
+			addVectors(resultant_vector_->twist, atractive_vector_->twist);
 		if((ros::Time::now() - repulsive_vector_->header.stamp ) < ros::Duration(1.0))
 			addVectors(resultant_vector_->twist, repulsive_vector_->twist);
 
@@ -207,9 +246,13 @@ WmLocalNavigation::step()
 			state_=FAR;
 
 		if((ros::Time::now() - goal_->header.stamp) < ros::Duration(1.0))
-			addVectors(resultant_vector_->twist, goal_->gradient);
+			addVectors(resultant_vector_->twist, atractive_vector_->twist);
 
-		if(fabs(resultant_vector_->twist.angular.z) > M_PI/4.0)
+
+		vel.linear.x = resultant_vector_->twist.linear.x;
+		vel.angular.z = resultant_vector_->twist.angular.z;
+
+		if(fabs(resultant_vector_->twist.angular.z) > M_PI/2.0)
 		{
 			vel.linear.x = 0.0;
 			vel.angular.z = resultant_vector_->twist.angular.z;
@@ -260,6 +303,12 @@ WmLocalNavigation::step()
 		vel.angular.z = vel.angular.z/3.0;
 		vel.linear.x = vel.linear.x/3.0;
 	}
+
+	if((ros::Time::now() - repulsive_vector_->header.stamp ) < ros::Duration(1.0))
+		checkSafeVel(vel);
+
+	//vel.linear.x = 0.0;
+	//vel.angular.z = 0.0;
 
 	vel_pub_.publish(vel);
 
