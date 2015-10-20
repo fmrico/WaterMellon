@@ -58,7 +58,7 @@ add_message_files(
 
 add_service_files(
   DIRECTORY srv
-  FILES GetMap.srv
+  FILES GetMap.srv GetObject.srv
 )
 
 generate_messages(
@@ -165,8 +165,21 @@ add_dependencies(wm_global_navigation_node watermellon_gencpp)
 add_dependencies(wm_global_navigation_node watermellon_gencpp)
 add_dependencies(wm_map_saver watermellon_gencpp)
 
+##################################################################
+# Objects
+##################################################################
 
+add_executable(wm_object_node 
+	src/wm_objects/wm_object_node.cpp
+	src/wm_objects/WmObjectTrainer.cpp
+)
 
+add_executable(wm_object_saver_node 
+	src/wm_objects/wm_object_saver_node.cpp
+)
+
+target_link_libraries(wm_object_node  ${LINK_LIBS})
+target_link_libraries(wm_object_saver_node  ${LINK_LIBS})
 
 ##set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
 ##set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
