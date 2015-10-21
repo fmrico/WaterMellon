@@ -30,6 +30,7 @@
 #include <pcl/registration/icp.h>
 
 #include <watermellon/GetObject.h>
+#include <combinations.h>
 
 namespace wm_objects {
 
@@ -48,8 +49,11 @@ private:
 	void initMarkers();
 	bool validNewPoint(const pcl::PointXYZRGB& point);
 
+	void calculateSetMeanStdv(const std::vector<tf::StampedTransform>&set, tf::Vector3& mean, tf::Vector3& stdev);
+	void getValidMarks(std::vector<tf::StampedTransform>& marks, const ros::Time& stamp);
+	void getBestTransform(const std::vector<tf::StampedTransform>& marks, tf::Transform& trans, double& stdev);
 	static const int MAX_MARKS = 9;
-	static const int MIN_VALID_MARKS = 3;
+	static const int MIN_VALID_MARKS = 4;
 
 	ros::NodeHandle nh_;
 
@@ -64,7 +68,8 @@ private:
 	std::string objectFrameId_;
 	std::string cameraTopicId_;
 
-	tf::Transform marks2center_[MAX_MARKS];
+	std::map<std::string, tf::Transform> marks2center_;
+	tf::Transform alt_marks2center_[MAX_MARKS];
 
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr object_;
 	pcl::octree::OctreePointCloudSearch<pcl::PointXYZRGB>::Ptr object_octree_;

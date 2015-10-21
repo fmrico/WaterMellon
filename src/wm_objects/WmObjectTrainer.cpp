@@ -39,24 +39,42 @@ WmObjectTrainer::WmObjectTrainer(ros::NodeHandle private_nh_)
 void
 WmObjectTrainer::initMarkers()
 {
-	marks2center_[0].setOrigin(tf::Vector3(-0.1175, -0.079, 0.0));
-	marks2center_[0].setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
-	marks2center_[1].setOrigin(tf::Vector3(-0.1175, 0.0, 0.0));
-	marks2center_[1].setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
-	marks2center_[2].setOrigin(tf::Vector3(-0.1175, 0.079, 0.0));
-	marks2center_[2].setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
-	marks2center_[3].setOrigin(tf::Vector3(0.0, -0.079, 0.0));
-	marks2center_[3].setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
-	marks2center_[4].setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-	marks2center_[4].setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
-	marks2center_[5].setOrigin(tf::Vector3(0.0, 0.079, 0.0));
-	marks2center_[5].setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
-	marks2center_[6].setOrigin(tf::Vector3(0.1175, -0.079, 0.0));
-	marks2center_[6].setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
-	marks2center_[7].setOrigin(tf::Vector3(0.1175, 0.0, 0.0));
-	marks2center_[7].setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
-	marks2center_[8].setOrigin(tf::Vector3(0.1175, 0.079, 0.0));
-	marks2center_[8].setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
+	tf::Transform t;
+	t.setOrigin(tf::Vector3(-0.1175, -0.079, 0.0));
+	t.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
+	marks2center_["ar_marker_0"] = t;
+
+	t.setOrigin(tf::Vector3(-0.1175, 0.0, 0.0));
+	t.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
+	marks2center_["ar_marker_1"] = t;
+
+	t.setOrigin(tf::Vector3(-0.1175, 0.079, 0.0));
+	t.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
+	marks2center_["ar_marker_2"] = t;
+
+	t.setOrigin(tf::Vector3(0.0, -0.079, 0.0));
+	t.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
+	marks2center_["ar_marker_3"] = t;
+
+	t.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+	t.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
+	marks2center_["ar_marker_4"] = t;
+
+	t.setOrigin(tf::Vector3(0.0, 0.079, 0.0));
+	t.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
+	marks2center_["ar_marker_5"] = t;
+
+	t.setOrigin(tf::Vector3(0.1175, -0.079, 0.0));
+	t.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
+	marks2center_["ar_marker_6"] = t;
+
+	t.setOrigin(tf::Vector3(0.1175, 0.0, 0.0));
+	t.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
+	marks2center_["ar_marker_7"] = t;
+
+	t.setOrigin(tf::Vector3(0.1175, 0.079, 0.0));
+	t.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 1.0));
+	marks2center_["ar_marker_8"] = t;
 }
 
 bool
@@ -77,109 +95,168 @@ WmObjectTrainer::objectSrv(watermellon::GetObject::Request  &req, watermellon::G
 	return true;
 }
 
-bool
-WmObjectTrainer::updateObjectFrame(const ros::Time& stamp, tf::StampedTransform& m2c)
+
+void
+WmObjectTrainer::calculateSetMeanStdv(const std::vector<tf::StampedTransform>&set, tf::Vector3& mean, tf::Vector3& stdev)
 {
-	int valid=0;
-	tf::StampedTransform marks[MAX_MARKS];
+	int c=0;
 
-	bool valids[MAX_MARKS];
+	mean = tf::Vector3(0.0, 0.0, 0.0);
+	stdev = tf::Vector3(0.0, 0.0, 0.0);
 
-	for(int i=0; i<MAX_MARKS; i++) valids[i]=false;
 
+	for(std::vector<tf::StampedTransform>::const_iterator it=set.begin(); it!=set.end(); ++it)
+	{
+		tf::Transform center= it->inverse() * marks2center_[it->frame_id_];
+
+		ROS_DEBUG("NEW MARKS2CENTER (%lf, %lf, %lf) (%lf, %lf, %lf, %lf)",
+				center.getOrigin().x(), center.getOrigin().y(), center.getOrigin().z(),
+				center.getRotation().x(), center.getRotation().y(), center.getRotation().z(), center.getRotation().w());
+
+		mean = mean + center.getOrigin();
+		c++;
+	}
+
+	mean = mean/c;
+
+	for(std::vector<tf::StampedTransform>::const_iterator it=set.begin(); it!=set.end(); ++it)
+	{
+		tf::Transform center= it->inverse() * marks2center_[it->frame_id_];
+		stdev = stdev + (mean-center.getOrigin())*(mean-center.getOrigin());
+	}
+
+	stdev = stdev /c;
+}
+
+void
+WmObjectTrainer::getValidMarks(std::vector<tf::StampedTransform>& marks, const ros::Time& stamp)
+{
+	marks.clear();
 	for(int i=0; i<MAX_MARKS; i++)
 	{
+		tf::StampedTransform mark;
 		std::stringstream mark_frame;
 		mark_frame<<"ar_marker_"<<i;
 		try {
-			tfListener_. lookupTransform(mark_frame.str(), cameraFrameId_, stamp, marks[i]);
-			ROS_DEBUG("Frame [%s] found", marks[i].frame_id_.c_str());
-			valid++;
-			valids[i]=true;
-		} catch(tf::TransformException& ex){
-			//ROS_ERROR_STREAM( "No transform: " << ex.what() << ", quitting callback");
-		}
+			tfListener_. lookupTransform(mark_frame.str(), cameraFrameId_, stamp, mark);
+			ROS_DEBUG("Frame [%s] found", mark.frame_id_.c_str());
+
+			if(marks2center_.find(mark.frame_id_) != marks2center_.end())
+				marks.push_back(mark);
+
+		} catch(tf::TransformException& ex){}
 	}
 
+}
 
-	if(valid>=MIN_VALID_MARKS)
+void
+WmObjectTrainer::getBestTransform(const std::vector<tf::StampedTransform>& marks, tf::Transform& trans, double& stdev)
+{
+	std::string best;
+	double minstd=100.0;
+
+	Combinations<tf::StampedTransform> c(marks, MIN_VALID_MARKS);
+	for(Combinations<tf::StampedTransform>::iterator it=c.begin(); it!=c.end(); ++it)
 	{
-		tf::Transform center[MAX_MARKS];
-		tf::Transform media;
 
-		media.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-		media.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 0.0));
+		ROS_DEBUG("media de %s, %s, %s, %s", (*it)[0].frame_id_.c_str(), (*it)[1].frame_id_.c_str(),
+				(*it)[2].frame_id_.c_str(), (*it)[3].frame_id_.c_str());
 
-		int c=0;
+		tf::Vector3 mean;
+		tf::Vector3 stdev;
+		calculateSetMeanStdv(*it, mean, stdev);
 
-		for(int i=0; i<MAX_MARKS; i++)
+		if(((stdev[0]+stdev[1]+stdev[2])/3.0)<minstd)
 		{
-			if(valids[i])
+			best="[";
+
+			trans.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+			trans.setRotation(tf::Quaternion(0.0, 0.0, 0.0, 0.0));
+
+			minstd = (stdev[0]+stdev[1]+stdev[2])/3.0;
+			int c=0;
+			for(std::vector<tf::StampedTransform>::const_iterator it2=it->begin(); it2!=it->end(); ++it2)
 			{
-				center[i]= marks[i].inverse() * marks2center_[i] ;
+				tf::Transform mark2center;
 
-				ROS_DEBUG("[%d] (%lf, %lf, %lf) (%lf, %lf, %lf, %lf)", i,
-						center[i].getOrigin().x(), center[i].getOrigin().y(), center[i].getOrigin().z(),
-						center[i].getRotation().x(), center[i].getRotation().y(), center[i].getRotation().z(), center[i].getRotation().w());
+				mark2center = it2->inverse() * marks2center_[it2->frame_id_];
 
+				best=best+it2->frame_id_+" ,";
 				if(c==0)
 				{
-					media.setOrigin(center[i].getOrigin());
-					media.setRotation(center[i].getRotation());
+					trans.setOrigin(mark2center.getOrigin());
+					trans.setRotation(mark2center.getRotation());
 				}else
 				{
-					media.setOrigin(media.getOrigin() + center[i].getOrigin());
-					media.setRotation(media.getRotation() + center[i].getRotation());
+					trans.setOrigin(trans.getOrigin() + mark2center.getOrigin());
+					trans.setRotation(trans.getRotation() + mark2center.getRotation());
 				}
 				c++;
 			}
+
+			trans.setOrigin(trans.getOrigin()/c);
+			trans.setRotation(trans.getRotation()/c);
+			best=best+"]";
 		}
 
-		media.setOrigin(media.getOrigin()/c);
-		media.setRotation(media.getRotation()/c);
+		ROS_DEBUG("NEW WINNER (%lf, %lf, %lf) (%lf, %lf, %lf, %lf)",
+				trans.getOrigin().x(), trans.getOrigin().y(), trans.getOrigin().z(),
+				trans.getRotation().x(), trans.getRotation().y(), trans.getRotation().z(), trans.getRotation().w());
 
-
-		tf::Vector3 desv(0.0, 0.0, 0.0);
-		for(int i=0; i<MAX_MARKS; i++)
-			if(valids[i]) desv = desv + (media.getOrigin()-center[i].getOrigin())*(media.getOrigin()-center[i].getOrigin());
-		desv = desv/c;
-		double m_tolerance2 = 0.005*0.005;
-
-		ROS_DEBUG("MEDIA de %d (%lf, %lf, %lf) desv (%lf, %lf, %lf) [%lf]", c,
-				media.getOrigin().x(), media.getOrigin().y(), media.getOrigin().z(),
-				desv.x(), desv.y(),desv.z(), m_tolerance2);
-
-
-
-		if(desv.x()<m_tolerance2 && desv.y()<m_tolerance2 && desv.z()<m_tolerance2)
-		{
-			ROS_DEBUG("TRANSFORM ACCEPTED");
-
-			m2c.child_frame_id_ = objectFrameId_;
-			m2c.frame_id_ = cameraFrameId_;
-			m2c.stamp_ = ros::Time::now();
-
-			m2c.setOrigin(media.getOrigin());
-			m2c.setRotation(media.getRotation());
-
-			try
-			{
-				tfBroadcaster_.sendTransform(m2c);
-
-			}catch(tf::TransformException & ex)
-			{
-				ROS_WARN("WmObjectTrainer::updateObjectFrame %s",ex.what());
-			}
-			return true;
-		}else
-		{
-			ROS_DEBUG("TRANSFORM REJECTED");
-
-		}
-
+		//ROS_INFO("(%lf, %lf, %lf)  (%lf, %lf, %lf)",  mean[0], mean[1], mean[2], stdev[0], stdev[1], stdev[2]);
 	}
-	ROS_DEBUG("TRANSFORM REJECTED %d", valid);
+
+	//ROS_INFO("BEST = %s", best.c_str());
+
+	stdev = minstd;
+}
+
+
+bool
+WmObjectTrainer::updateObjectFrame(const ros::Time& stamp, tf::StampedTransform& m2c)
+{
+	std::vector<tf::StampedTransform> valids;
+
+	getValidMarks(valids, stamp);
+	if(valids.size()<4)
+	{
+		//ROS_INFO("No enough marks detected [%zu]", valids.size());
+		return false;
+	}
+
+	tf::Transform media;
+	double stdev;
+	getBestTransform(valids, media, stdev);
+
+	double m_tolerance2 = 0.006*0.006;
+	if(stdev<m_tolerance2)
+	{
+		//ROS_INFO("TRANSFORM ACCEPTED ");
+		m2c.child_frame_id_ = objectFrameId_;
+		m2c.frame_id_ = cameraFrameId_;
+		m2c.stamp_ = ros::Time::now();
+
+		m2c.setOrigin(media.getOrigin());
+		m2c.setRotation(media.getRotation());
+
+		ROS_DEBUG("NEW FINAL (%lf, %lf, %lf) (%lf, %lf, %lf, %lf)",
+				m2c.getOrigin().x(), m2c.getOrigin().y(), m2c.getOrigin().z(),
+				m2c.getRotation().x(), m2c.getRotation().y(), m2c.getRotation().z(), m2c.getRotation().w());
+
+		try
+		{
+			tfBroadcaster_.sendTransform(m2c);
+
+		}catch(tf::TransformException & ex)
+		{
+			ROS_WARN("WmObjectTrainer::updateObjectFrame %s",ex.what());
+		}
+		return true;
+	}
+
+	//ROS_INFO("TRANSFORM REJECTED ");
 	return false;
+
 }
 
 bool
@@ -218,7 +295,10 @@ WmObjectTrainer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 
 	tf::StampedTransform cameraToObjectTf;
 	if(!updateObjectFrame(cloud_in->header.stamp, cameraToObjectTf))
+	{
+		ROS_INFO("WmObjectTrainer: No points added due to rejected transform");
 		return;
+	}
 	tf::StampedTransform sensorToCameraTf;
 	try {
 		tfListener_.lookupTransform(cameraFrameId_, cloud_in->header.frame_id, cloud_in->header.stamp, sensorToCameraTf);
@@ -257,7 +337,7 @@ WmObjectTrainer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 	}
 
 	static bool start=true;
-	if(!start && pc_in->size()>0)
+	if( false && !start && pc_in->size()>0)
 	{
 
 		pcl::IterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp;
@@ -273,7 +353,7 @@ WmObjectTrainer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 		pcl::PointCloud<pcl::PointXYZRGB> final;
 		icp.align(final);
 		Eigen::Matrix4f correction = icp.getFinalTransformation();
-		correction = correction.inverse();
+		correction = correction;//.inverse();
 		pcl::transformPointCloud(*pc_in, *pc_in, correction);
 	}
 	start=false;
@@ -296,6 +376,7 @@ WmObjectTrainer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 
 		objectPub_.publish(cloud_out);
 	}
+	ROS_INFO("WmObjectTrainer: Object points: %zu", object_->size());
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 	ROS_DEBUG("Pointcloud insertion in object done (%zu pts total, %f sec)", object_->size(), total_elapsed);
