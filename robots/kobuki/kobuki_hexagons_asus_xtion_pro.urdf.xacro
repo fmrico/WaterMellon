@@ -14,12 +14,17 @@
   <!-- Stacks -->
   <xacro:include filename="$(find turtlebot_description)/urdf/stacks/circles.urdf.xacro"/>
   <xacro:include filename="$(find turtlebot_description)/urdf/stacks/hexagons.urdf.xacro"/>
+  <!-- Flir_PTU -->
+  <!--<xacro:include filename="$(find watermellon)/robots/kobuki/flir_ptu.urdf.xacro"/>-->
   <!-- 3D Sensors -->
   <xacro:include filename="$(find turtlebot_description)/urdf/sensors/kinect.urdf.xacro"/>
   <xacro:include filename="$(find watermellon)/robots/kobuki/asus_xtion_pro.urdf.xacro"/>
   <xacro:include filename="$(find watermellon)/robots/kobuki/hokuyo.urdf.xacro"/>
   <kobuki/>
+  
+  <!--<flir 				  parent="base_link"/>-->
   <stack_hexagons         parent="base_link"/>
+  <!--<sensor_asus_xtion_pro  parent="ptu_mount_link"/>-->
   <sensor_asus_xtion_pro  parent="base_link"/>
   <sensor_hokuyo 		  parent="base_link"/>
 </robot>

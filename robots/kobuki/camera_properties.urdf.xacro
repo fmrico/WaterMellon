@@ -22,7 +22,14 @@
      Note: REP needs to be updated with the information below 
      (currently in development and awaiting feedback)
    -->
-
+<!--
+	<property name="cam_px" value="0.0" />
+	<property name="cam_py" value="0.0" />
+	<property name="cam_pz" value="0.0" />
+	<property name="cam_or" value="0" />
+	<property name="cam_op" value="0" />
+	<property name="cam_oy" value="0" />
+-->
 	<property name="cam_px" value="0.13" />
 	<property name="cam_py" value="0.0" />
 	<property name="cam_pz" value="0.49" />

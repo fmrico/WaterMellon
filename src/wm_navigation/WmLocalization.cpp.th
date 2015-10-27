@@ -28,10 +28,9 @@ WmLocalization::WmLocalization(ros::NodeHandle private_nh_)
   map_(new pcl::octree::OctreePointCloudSearch<pcl::PointXYZRGB>(128.0f)),
   map_max_x_(1.0), map_min_x_(0.0), map_max_y_(1.0), map_min_y_(0.0),
   particles_(numparticles_max_),
-  num_threads_(8),
-  noise_level_(0.05),
-  distribution_(0.0,noise_level_),
-  range_(num_threads_)
+  num_threads_(1),
+  noise_level_(0.15)//,
+  //distribution_(0.0, 0.15)
 {
 
 	ros::NodeHandle private_nh(private_nh_);
@@ -86,9 +85,7 @@ WmLocalization::WmLocalization(ros::NodeHandle private_nh_)
 
 
 	srand(time(0));
-	generator_.seed(time(NULL));
-
-	updateRanges();
+	//generator_.seed(time(NULL));
 
 }
 
@@ -173,6 +170,55 @@ WmLocalization::perceptionCallback(const sensor_msgs::PointCloud2::ConstPtr& clo
 		}
 	}
 
+
+
+
+	/*
+
+
+
+
+
+
+
+
+
+
+
+	pcl::PCLPointCloud2::Ptr cloud (new pcl::PCLPointCloud2 ());
+	pcl::PCLPointCloud2::Ptr cloud_filtered (new pcl::PCLPointCloud2 ());
+
+	pcl_conversions::toPCL(*cloud_in, *cloud);
+
+	pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
+	sor.setInputCloud (cloud);
+	sor.setLeafSize (res_, res_, res_);
+	sor.filter (*cloud_filtered);
+
+	pcl::fromPCLPointCloud2 (*cloud_filtered, *last_perception_);
+
+	tf::StampedTransform sensorToBaseTf;
+	try {
+		tfListener_.lookupTransform(baseFrameId_, cloud_in->header.frame_id, cloud_in->header.stamp, sensorToBaseTf);
+	} catch(tf::TransformException& ex){
+		ROS_ERROR_STREAM( "Transform error of sensor data: " << ex.what() << ", quitting callback");
+		return;
+	}
+
+	Eigen::Matrix4f sensorToBase;
+	pcl_ros::transformAsMatrix(sensorToBaseTf, sensorToBase);
+
+	pcl::PassThrough<pcl::PointXYZRGB> pass;
+	pass.setFilterFieldName("z");
+	pass.setFilterLimits(pointcloudMinZ_, pointcloudMaxZ_);
+
+	// directly transform to map frame:
+	pcl::transformPointCloud(*last_perception_, *last_perception_, sensorToBase);
+
+	// just filter height range:
+	pass.setInputCloud(last_perception_->makeShared());
+	pass.filter(*last_perception_);
+	 */
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 	//ROS_DEBUG("Pointcloud perception done (%zu pts total, %f sec)", last_perception_->size(), total_elapsed);
 
@@ -290,18 +336,18 @@ WmLocalization::resetParticleNear(Particle& p2reset, const Particle& pref)
 	sy2 = pose_.covariance[1 * 6 + 1]; //Y*Y
 	st2 = pose_.covariance[5 * 6 + 5]; //rZ*rZ
 
-	sx2 = std::min(sx2, 0.05f*0.05f);
-	sy2 = std::min(sy2, 0.05f*0.05f);
-	st2 = std::min(st2, 0.02f*0.02f);
+	sx2 = std::min(sx2, 0.05f);
+	sy2 = std::min(sx2, 0.05f);
+	st2 = std::min(sx2, 0.02f);
 
-	std::normal_distribution<float> normalX(0.0, sqrt(sx2));
-	std::normal_distribution<float> normalY(0.0, sqrt(sy2));
-	std::normal_distribution<float> normalT(0.0, sqrt(st2));
+	//std::normal_distribution<float> normalX(0.0, sqrt(sx2));
+	//std::normal_distribution<float> normalY(0.0, sqrt(sy2));
+	//std::normal_distribution<float> normalT(0.0, sqrt(st2));
 
 
 	//do {
-	x = pref.coord_.position.x + normalX(generator_);
-	y = pref.coord_.position.y + normalY(generator_);
+	x = pref.coord_.position.x + randn(0.0, sx2);//normalX(generator_);
+	y = pref.coord_.position.y + randn(0.0, sy2);//normalY(generator_);
 	//} while (!validParticlePosition(x,y));
 
 	tf::Quaternion q(pref.coord_.orientation.x, pref.coord_.orientation.y,
@@ -309,7 +355,7 @@ WmLocalization::resetParticleNear(Particle& p2reset, const Particle& pref)
 
 	double roll, pitch, yaw;
 	tf::Matrix3x3(q).getRPY(roll, pitch, yaw);
-	float newt = normalizePi(yaw + normalT(generator_));
+	float newt = normalizePi(yaw +  randn(0.0, st2));//normalT(generator_));
 
 	setParticle(p2reset, x, y, newt);
 
@@ -415,6 +461,8 @@ WmLocalization::publishPerception(const ros::Time& rostime)
 void
 WmLocalization::step()
 {
+	for(int i=0; i<particles_.size(); i++)
+		if(std::isnan(particles_[i].coord_.position.x)) throw;
 
 	ROS_DEBUG("Step()");
 	ros::WallTime startTime = ros::WallTime::now();
@@ -423,33 +471,34 @@ WmLocalization::step()
 		ROS_DEBUG("Doing nothing on this step");
 		return;
 	}
-
-
+	for(int i=0; i<particles_.size(); i++)
+			if(std::isnan(particles_[i].coord_.position.x)) throw;
 
 	if(doResetParticles_)
 	{
 		ROS_DEBUG("Resetting");
+
+		ros::WallTime startTime1 = ros::WallTime::now();
 		resetParticles();
 		doResetParticles_ = false;
+		double total_elapsed1 = (ros::WallTime::now() - startTime1).toSec();
+		ROS_INFO("Reset done (%f sec)", total_elapsed1);
+
 	}
 
-	ROS_DEBUG("Predict");
+	for(int i=0; i<particles_.size(); i++)
+			if(std::isnan(particles_[i].coord_.position.x)) throw;
+
 	predict();
-
-	ROS_DEBUG("Correct");
 	correct();
-
-	ROS_DEBUG("Normlize");
 	normalize();
-
-	ROS_DEBUG("Reseed");
 	reseed();
 
 	ROS_DEBUG("Updating Pos");
 	updatePos();
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
-	ROS_DEBUG("Localization done (%f sec)", total_elapsed);
+	ROS_INFO("Localization done (%f sec)", total_elapsed);
 
 	ROS_DEBUG("Publishing all");
 	publishAll();
@@ -463,10 +512,10 @@ WmLocalization::genNoise(const tf::Transform &base)
 
 	float nx, ny, nz, nt;
 
-	nx = distribution_(generator_);
-	ny = distribution_(generator_);
+	nx = randn(0.0, 0.05);//(*distribution)(generator);
+	ny = randn(0.0, 0.05);//(*distribution)(generator);
 	nz = 0.0f;
-	nt = distribution_(generator_);
+	nt = randn(0.0, 0.05);//(*distribution)(generator);
 
 
 	ret.setOrigin(tf::Vector3(base.getOrigin().getX()*nx,
@@ -495,10 +544,13 @@ WmLocalization::genNoise(const tf::Transform &base)
 void
 WmLocalization::doPredict(const ThreadCompRange& range, const tf::Transform& desp)
 {
+	for(int i=0; i<particles_.size(); i++)
+			if(std::isnan(particles_[i].coord_.position.x)) throw;
 
 	for (int i = range.start; i < range.end; i++) {
 		tf::Transform part, parttf;
 
+		if(std::isnan(particles_[i].coord_.position.x)) throw;
 
 		part.setOrigin(
 				tf::Vector3(particles_[i].coord_.position.x,
@@ -521,6 +573,8 @@ WmLocalization::doPredict(const ThreadCompRange& range, const tf::Transform& des
 		particles_[i].coord_.orientation.y = parttf.getRotation().getY();
 		particles_[i].coord_.orientation.z = parttf.getRotation().getZ();
 		particles_[i].coord_.orientation.w = parttf.getRotation().getW();
+
+		if(std::isnan(particles_[i].coord_.position.x)) throw;
 
 	}
 }
@@ -545,12 +599,30 @@ WmLocalization::predict()
 	last2odom_.setRotation(odom2bf.inverse().getRotation());
 
 
-	std::vector<std::thread> threads;
-	for(int i=0; i<num_threads_;i++)
-		threads.push_back(std::thread(&WmLocalization::doPredict, this, range_[i], desp));
+	std::vector<ThreadCompRange> range(num_threads_);
+	//std::vector<std::thread> threads;
 
 	for(int i=0; i<num_threads_;i++)
-		threads[i].join();
+	{
+		range[i].start = ((float)particles_.size()/num_threads_)*i;
+		range[i].end = ((float)particles_.size()/num_threads_)*(i+1)-1;
+	}
+
+	for(int i=0; i<particles_.size(); i++)
+			if(std::isnan(particles_[i].coord_.position.x)) throw;
+
+	for(int i=0; i<num_threads_;i++)
+	{
+		//threads.push_back(std::thread(&WmLocalization::doPredict, this, range[i], desp));
+		doPredict(range[i], desp);
+	}
+
+
+
+	for(int i=0; i<num_threads_;i++)
+	{
+		//threads[i].join();
+	}
 }
 
 
@@ -658,22 +730,45 @@ WmLocalization::correct()
 
 	//ToDo: Use keypoints instead of random ones
 	std::vector<pcl::PointXYZRGB> testpoints(correctpoints_);
+
 	for (int i = 0; i < correctpoints_; i++)
 	{
 		int idx = rand() % last_perception_->size();
 		testpoints[i] = last_perception_->at(idx);
 	}
 
-	std::vector<std::thread> threads;
+
+	std::vector<ThreadCompRange> range(num_threads_);
+	//std::vector<std::thread> threads;
+
+	ROS_INFO("PARTICLES [%zu] THREADS [%d]", particles_.size(), num_threads_);
 	for(int i=0; i<num_threads_;i++)
-		threads.push_back(std::thread(&WmLocalization::doCorrect, this, range_[i], testpoints));
+	{
+		range[i].start = ((float)particles_.size()/num_threads_)*i;
+		range[i].end = ((float)particles_.size()/num_threads_)*(i+1)-1;
+
+		ROS_INFO("T[%d] [%d - %d]", i, range[i].start, range[i].end);
+	}
+
 	for(int i=0; i<num_threads_;i++)
-		threads[i].join();
+	{
+		//threads.push_back(std::thread(&WmLocalization::doCorrect, this, range[i], testpoints));
+		doCorrect(range[i], testpoints);
+	}
+
+	for(int i=0; i<num_threads_;i++)
+	{
+		//threads[i].join();
+	}
+
+
+
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 	ROS_DEBUG("Correction done (%f sec)", total_elapsed);
 
 }
+
 void
 WmLocalization::normalize() {
 
@@ -694,29 +789,22 @@ WmLocalization::normalize() {
 }
 
 void
-WmLocalization::updateRanges()
-{
-	for(int i=0; i<num_threads_;i++)
-	{
-		range_[i].start = ((float)particles_.size()/num_threads_)*i;
-		range_[i].end = ((float)particles_.size()/num_threads_)*(i+1)-1;
-	}
-
-}
-void
 WmLocalization::doReseed(const ThreadCompRange& range, const int& idx_25,  const int& idx_50, const int& idx_75)
 {
 
 	for(int j=range.start; j<range.end; j++)
 	{
+		int c=0;
 
 		if(j>=idx_50 && j<idx_75)
 			resetParticleUniform(particles_[j]);
-		else if(j>=idx_75)
+		else if(j>idx_75)
 		{
-			int c = rand() %idx_25;
 			resetParticleNear(particles_[j], particles_[c]);
+			c = (c+1)%idx_25;
 		}
+		if(std::isnan(particles_[j].coord_.position.x)) throw;
+
 	}
 }
 
@@ -728,7 +816,6 @@ WmLocalization::reseed()
 
 	float area_unc = sqrt(pose_.covariance[0]) * sqrt(pose_.covariance[1 * 6 + 1]);
 
-
 	if(area_unc>3.0)
 	{
 		int new_size = particles_.size() * 1.5;
@@ -738,9 +825,6 @@ WmLocalization::reseed()
 
 		for(int i=0; i<add_p;i++)
 			particles_.push_back(Particle());
-
-		updateRanges();
-
 	}else if(area_unc<0.1)
 	{
 		int new_size = particles_.size() / 1.5;
@@ -748,19 +832,36 @@ WmLocalization::reseed()
 		int del_p = particles_.size()-new_size;
 
 		particles_.erase(particles_.end()-del_p, particles_.end());
-
-		updateRanges();
 	}
 
 	int idx_25 = particles_.size()*25/100;
 	int idx_50 = particles_.size()*50/100;
 	int idx_75 = particles_.size()*75/100;
 
-	std::vector<std::thread> threads;
+
+	std::vector<ThreadCompRange> range(num_threads_);
+	//std::vector<std::thread> threads;
+
 	for(int i=0; i<num_threads_;i++)
-		threads.push_back(std::thread(&WmLocalization::doReseed, this, range_[i], idx_25, idx_50, idx_75));
+	{
+		range[i].start = ((float)particles_.size()/num_threads_)*i;
+		range[i].end = ((float)particles_.size()/num_threads_)*(i+1)-1;
+	}
+
 	for(int i=0; i<num_threads_;i++)
-		threads[i].join();
+	{
+		//threads.push_back(std::thread(&WmLocalization::doReseed, this, range[i], idx_25, idx_50, idx_75));
+		doReseed(range[i], idx_25, idx_50, idx_75);
+	}
+
+	for(int i=0; i<num_threads_;i++)
+	{
+		//threads[i].join();
+	}
+
+
+
+
 }
 
 

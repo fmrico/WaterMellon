@@ -1,12 +1,12 @@
 /*
- * WmObjectTrainer.h
+ * WmObjectCapture.h
  *
  *  Created on: 19/10/2015
  *      Author: paco
  */
 
-#ifndef WMOBJECTTRAINER_H_
-#define WMOBJECTTRAINER_H_
+#ifndef WMOBJECTCAPTURE_H_
+#define WMOBJECTCAPTURE_H_
 
 #include <ros/ros.h>
 
@@ -27,7 +27,9 @@
 #include <pcl/octree/octree_search.h>
 #include <pcl/octree/octree.h>
 #include <pcl/point_types.h>
-#include <pcl/registration/icp.h>
+#include <pcl/io/ply_io.h>
+
+//#include <pcl/registration/transformation_estimation_2D.h>
 
 #include <watermellon/GetObject.h>
 #include <combinations.h>
@@ -35,14 +37,15 @@
 namespace wm_objects {
 
 
-class WmObjectTrainer {
+class WmObjectCapture {
 public:
-	WmObjectTrainer(ros::NodeHandle private_nh_ = ros::NodeHandle("~"));
-	virtual ~WmObjectTrainer();
+	WmObjectCapture(ros::NodeHandle private_nh_ = ros::NodeHandle("~"));
+	virtual ~WmObjectCapture();
 
 	void insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in);
 	bool objectSrv(watermellon::GetObject::Request  &req, watermellon::GetObject::Response &res);
 
+	bool openFile(const std::string& filename);
 private:
 
 	bool updateObjectFrame(const ros::Time& stamp, tf::StampedTransform& m2c);
@@ -67,6 +70,8 @@ private:
 	std::string cameraFrameId_;
 	std::string objectFrameId_;
 	std::string cameraTopicId_;
+	bool making_object_;
+	bool unique_shot_;
 
 	std::map<std::string, tf::Transform> marks2center_;
 	tf::Transform alt_marks2center_[MAX_MARKS];

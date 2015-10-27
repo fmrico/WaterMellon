@@ -1,43 +1,59 @@
 /*
- * WmCommonFrame.cpp
+ * WmObjectCapture.cpp
  *
  *  Created on: 19/10/2015
  *      Author: paco
  */
 
-#include <wm_objects/WmObjectTrainer.h>
+#include <wm_objects/WmObjectCapture.h>
 
 namespace wm_objects {
 
-WmObjectTrainer::WmObjectTrainer(ros::NodeHandle private_nh_)
+WmObjectCapture::WmObjectCapture(ros::NodeHandle private_nh_)
 : nh_(),
   objectFrameId_("/object"),
   cameraFrameId_("/camera_link"),
   cameraTopicId_("/camera/depth_registered/points"),
   object_(new pcl::PointCloud<pcl::PointXYZRGB>),
   object_octree_(new pcl::octree::OctreePointCloudSearch<pcl::PointXYZRGB>(128.0f)),
-  max_z_(0.5)
+  max_z_(0.5),
+  making_object_(true),
+  unique_shot_(false)
 {
 	ros::NodeHandle private_nh(private_nh_);
 	private_nh.param("objectFrameId", objectFrameId_, objectFrameId_);
 	private_nh.param("cameraFrameId", cameraFrameId_, cameraFrameId_);
 	private_nh.param("cameraTopicId", cameraTopicId_, cameraTopicId_);
 	private_nh.param("pointcloud_max_z", max_z_,max_z_);
+	private_nh.param("make_object", making_object_,making_object_);
+	private_nh.param("unique_shot", unique_shot_,unique_shot_);
 
 	pointCloudSub_ = new message_filters::Subscriber<sensor_msgs::PointCloud2> (nh_, cameraTopicId_, 5);
 	tfPointCloudSub_ = new tf::MessageFilter<sensor_msgs::PointCloud2> (*pointCloudSub_, tfListener_, cameraFrameId_, 5);
-	tfPointCloudSub_->registerCallback(boost::bind(&WmObjectTrainer::insertCloudCallback, this, _1));
+	tfPointCloudSub_->registerCallback(boost::bind(&WmObjectCapture::insertCloudCallback, this, _1));
 
-	objectService_ = nh_.advertiseService("object", &WmObjectTrainer::objectSrv, this);
+	objectService_ = nh_.advertiseService("object", &WmObjectCapture::objectSrv, this);
 	objectPub_ =  nh_.advertise<sensor_msgs::PointCloud2>("/object", 1, true);
+
 	object_octree_->setInputCloud(object_);
 
 	initMarkers();
 }
 
+bool
+WmObjectCapture::openFile(const std::string& filename)
+{
 
+	if (pcl::io::savePLYFile<pcl::PointXYZRGB> (filename, *object_) == -1)
+	{
+		ROS_ERROR ("Couldn't read file %s", filename.c_str());
+		return false;
+	}
+
+	return true;
+}
 void
-WmObjectTrainer::initMarkers()
+WmObjectCapture::initMarkers()
 {
 	tf::Transform t;
 	t.setOrigin(tf::Vector3(-0.1175, -0.079, 0.0));
@@ -78,7 +94,7 @@ WmObjectTrainer::initMarkers()
 }
 
 bool
-WmObjectTrainer::objectSrv(watermellon::GetObject::Request  &req, watermellon::GetObject::Response &res)
+WmObjectCapture::objectSrv(watermellon::GetObject::Request  &req, watermellon::GetObject::Response &res)
 {
 
 	ROS_INFO("Sending object  on service request");
@@ -97,7 +113,7 @@ WmObjectTrainer::objectSrv(watermellon::GetObject::Request  &req, watermellon::G
 
 
 void
-WmObjectTrainer::calculateSetMeanStdv(const std::vector<tf::StampedTransform>&set, tf::Vector3& mean, tf::Vector3& stdev)
+WmObjectCapture::calculateSetMeanStdv(const std::vector<tf::StampedTransform>&set, tf::Vector3& mean, tf::Vector3& stdev)
 {
 	int c=0;
 
@@ -129,7 +145,7 @@ WmObjectTrainer::calculateSetMeanStdv(const std::vector<tf::StampedTransform>&se
 }
 
 void
-WmObjectTrainer::getValidMarks(std::vector<tf::StampedTransform>& marks, const ros::Time& stamp)
+WmObjectCapture::getValidMarks(std::vector<tf::StampedTransform>& marks, const ros::Time& stamp)
 {
 	marks.clear();
 	for(int i=0; i<MAX_MARKS; i++)
@@ -150,7 +166,7 @@ WmObjectTrainer::getValidMarks(std::vector<tf::StampedTransform>& marks, const r
 }
 
 void
-WmObjectTrainer::getBestTransform(const std::vector<tf::StampedTransform>& marks, tf::Transform& trans, double& stdev)
+WmObjectCapture::getBestTransform(const std::vector<tf::StampedTransform>& marks, tf::Transform& trans, double& stdev)
 {
 	std::string best;
 	double minstd=100.0;
@@ -213,7 +229,7 @@ WmObjectTrainer::getBestTransform(const std::vector<tf::StampedTransform>& marks
 
 
 bool
-WmObjectTrainer::updateObjectFrame(const ros::Time& stamp, tf::StampedTransform& m2c)
+WmObjectCapture::updateObjectFrame(const ros::Time& stamp, tf::StampedTransform& m2c)
 {
 	std::vector<tf::StampedTransform> valids;
 
@@ -249,7 +265,7 @@ WmObjectTrainer::updateObjectFrame(const ros::Time& stamp, tf::StampedTransform&
 
 		}catch(tf::TransformException & ex)
 		{
-			ROS_WARN("WmObjectTrainer::updateObjectFrame %s",ex.what());
+			ROS_WARN("WmObjectCapture::updateObjectFrame %s",ex.what());
 		}
 		return true;
 	}
@@ -260,7 +276,7 @@ WmObjectTrainer::updateObjectFrame(const ros::Time& stamp, tf::StampedTransform&
 }
 
 bool
-WmObjectTrainer::validNewPoint(const pcl::PointXYZRGB& point)
+WmObjectCapture::validNewPoint(const pcl::PointXYZRGB& point)
 {
 	if(object_octree_->getInputCloud()->size()<1) return true;
 
@@ -289,14 +305,14 @@ WmObjectTrainer::validNewPoint(const pcl::PointXYZRGB& point)
 }
 
 void
-WmObjectTrainer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
+WmObjectCapture::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_in)
 {
 	ros::WallTime startTime = ros::WallTime::now();
 
 	tf::StampedTransform cameraToObjectTf;
 	if(!updateObjectFrame(cloud_in->header.stamp, cameraToObjectTf))
 	{
-		ROS_INFO("WmObjectTrainer: No points added due to rejected transform");
+		ROS_INFO("WmObjectCapture: No points added due to rejected transform");
 		return;
 	}
 	tf::StampedTransform sensorToCameraTf;
@@ -336,10 +352,51 @@ WmObjectTrainer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 		pc_in->push_back(*it);
 	}
 
+	/*
 	static bool start=true;
-	if( false && !start && pc_in->size()>0)
+	if(!start && pc_in->size()>0)
 	{
 
+		pcl::registration::TransformationEstimation2D<pcl::PointXYZRGB,pcl::PointXYZRGB> transformation;
+		Eigen::Matrix4f Tm;
+
+
+		transformation.estimateRigidTransformation(*object_, *pc_in, Tm);
+
+
+		std::cout<<"CORRECTION="<<std::endl;
+		std::cout<<Tm;
+
+		tf::Vector3 origin;
+		origin.setValue(static_cast<double>(Tm(0,3)),static_cast<double>(Tm(1,3)),static_cast<double>(Tm(2,3)));
+
+		//std::cout << origin << std::endl;
+		tf::Matrix3x3 tf3d;
+		tf3d.setValue(static_cast<double>(Tm(0,0)), static_cast<double>(Tm(0,1)), static_cast<double>(Tm(0,2)),
+				static_cast<double>(Tm(1,0)), static_cast<double>(Tm(1,1)), static_cast<double>(Tm(1,2)),
+				static_cast<double>(Tm(2,0)), static_cast<double>(Tm(2,1)), static_cast<double>(Tm(2,2)));
+
+		tf::Quaternion tfqt;
+		tf3d.getRotation(tfqt);
+
+		tf::Transform transform;
+		transform.setOrigin(origin);
+		transform.setRotation(tfqt);
+
+
+		//std::cout<<std::endl<<"Tanslation: ("<<transform.getOrigin().x()<<", "<<transform.getOrigin().y()<<", "<<transform.getOrigin().z()<<")"<<std::endl;
+
+		double roll, pitch, yaw;
+		tf::Matrix3x3(tfqt).getRPY(roll, pitch, yaw);
+		//std::cout<<"Rotation: ("<<roll<<", "<<pitch<<", "<<yaw<<")"<<std::endl;
+
+		//pcl::transformPointCloud(*pc_in, *pc_in, correction);
+
+		printf("\nT(%lf, %lf, %lf) [%lf, %lf, %lf]\n", transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z(),
+				roll, pitch, yaw);
+	}
+	start=false;*/
+	/*
 		pcl::IterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp;
 
 		icp.setMaxCorrespondenceDistance (0.002);
@@ -354,17 +411,28 @@ WmObjectTrainer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 		icp.align(final);
 		Eigen::Matrix4f correction = icp.getFinalTransformation();
 		correction = correction;//.inverse();
-		pcl::transformPointCloud(*pc_in, *pc_in, correction);
-	}
-	start=false;
+		pcl::transformPointCloud(*pc_in, *pc_in, correction);*/
 
-	for(pcl::PointCloud<pcl::PointXYZRGB>::iterator it=pc_in->begin(); it!=pc_in->end(); ++it)
+	/*
+	 * Restart object each time
+	 *
+	 */
+
+	if(making_object_)
 	{
-		if(!validNewPoint(*it)) continue;
-		object_->push_back(*it);
-		object_octree_->addPointToCloud (*it, object_);
-	}
+		if(unique_shot_)
+		{
+			object_->clear();
+			object_octree_->deleteTree();
+		}
 
+		for(pcl::PointCloud<pcl::PointXYZRGB>::iterator it=pc_in->begin(); it!=pc_in->end(); ++it)
+		{
+			if(!validNewPoint(*it)) continue;
+			object_->push_back(*it);
+			object_octree_->addPointToCloud (*it, object_);
+		}
+	}
 
 	if (objectPub_.getNumSubscribers() > 0){
 		sensor_msgs::PointCloud2 cloud_out;
@@ -376,7 +444,7 @@ WmObjectTrainer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 
 		objectPub_.publish(cloud_out);
 	}
-	ROS_INFO("WmObjectTrainer: Object points: %zu", object_->size());
+	ROS_INFO("WmObjectCapture: Object points: %zu", object_->size());
 
 	double total_elapsed = (ros::WallTime::now() - startTime).toSec();
 	ROS_DEBUG("Pointcloud insertion in object done (%zu pts total, %f sec)", object_->size(), total_elapsed);
@@ -384,7 +452,7 @@ WmObjectTrainer::insertCloudCallback(const sensor_msgs::PointCloud2::ConstPtr& c
 	return;
 }
 
-WmObjectTrainer::~WmObjectTrainer() {
+WmObjectCapture::~WmObjectCapture() {
 	// TODO Auto-generated destructor stub
 }
 

@@ -6,7 +6,9 @@ include(FindJsoncpp.cmake)
 
 ##set(ROS_BUILD_TYPE Debug)
 ##set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE RELWITHDEBINFO)
+
+#set(CMAKE_BUILD_TYPE Release)
 
 find_package(catkin REQUIRED genmsg actionlib_msgs actionlib geometry_msgs)
 add_action_files(DIRECTORY action FILES 
@@ -19,7 +21,7 @@ add_action_files(DIRECTORY action FILES
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   octomap_msgs
-  pcl_ros
+  #pcl_ros
   roscpp
   rospy
   std_msgs
@@ -46,7 +48,7 @@ FIND_LIBRARY(iceutil_lib IceUtil)
 find_package(Jsoncpp REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS ${PACKAGE_DEPENDENCIES})
-find_package(PCL REQUIRED QUIET COMPONENTS common sample_consensus io segmentation filters)
+find_package(PCL 1.8 REQUIRED QUIET COMPONENTS common sample_consensus io registration segmentation filters  3d_rec_framework)
 
 #message("**Jsoncpp_INCLUDE_DIR: " ${JSONCPP_INCLUDE_DIR} )
 #message("**Jsoncpp_LIBRARY: " ${JSONCPP_LIBRARY} )
@@ -169,17 +171,35 @@ add_dependencies(wm_map_saver watermellon_gencpp)
 # Objects
 ##################################################################
 
-add_executable(wm_object_node 
-	src/wm_objects/wm_object_node.cpp
-	src/wm_objects/WmObjectTrainer.cpp
+add_executable(wm_object_capture_node 
+	src/wm_objects/wm_object_capture_node.cpp
+	src/wm_objects/WmObjectCapture.cpp
 )
 
 add_executable(wm_object_saver_node 
 	src/wm_objects/wm_object_saver_node.cpp
 )
 
-target_link_libraries(wm_object_node  ${LINK_LIBS})
-target_link_libraries(wm_object_saver_node  ${LINK_LIBS})
+add_executable(wm_object_recognition_node 
+	src/wm_objects/wm_object_recognition_node.cpp
+	src/wm_objects/WmObjectRecognition.cpp
+	src/wm_objects/Objects.cpp
+)
 
-##set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
+target_link_libraries(wm_object_capture_node  ${LINK_LIBS})
+target_link_libraries(wm_object_saver_node  ${LINK_LIBS})
+target_link_libraries(wm_object_recognition_node  ${LINK_LIBS})
+
+
+##################################################################
+# Attention
+##################################################################
+
+add_executable(prueba_pan_tilt 
+	src/wm_attention/prueba_pan_tilt.cpp
+)
+
+target_link_libraries(prueba_pan_tilt  ${LINK_LIBS})
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
 ##set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")

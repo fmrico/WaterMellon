@@ -1,25 +1,18 @@
-/*
- * mapper_node.cpp
- *
- *  Created on: 22/08/2015
- *      Author: paco
- */
-
 
 #include "ros/ros.h"
 
-#include <wm_objects/WmObjectTrainer.h>
+#include <wm_objects/WmObjectRecognition.h>
 
-using namespace wm_objects;
+using namespace wm_object;
 
 int main(int argc, char **argv)
 {
-	ros::init(argc, argv, std::string("wm_objects"));
+	ros::init(argc, argv, std::string("wm_object_recognition"));
 	ros::NodeHandle n;
 
 	ros::Rate loop_rate(5);
 
-	WmObjectTrainer wm_object_trainer;
+	WmObjectRecognition wm_object_recognition;
 
 	try{
 		while ( ros::ok())

@@ -47,12 +47,13 @@
 #include <time.h>
 #include <algorithm>
 #include <time.h>
-
-#include <random>
-#include <thread>
+//#include <random>
 
 #include <wm_navigation/Particle.h>
 #include <wm_navigation/Utilities.h>
+
+//#include <thread>
+
 
 namespace wm_navigation {
 
@@ -106,7 +107,6 @@ private:
 
 	bool validParticlePosition(float x, float y);
 
-	void updateRanges();
 
 	/*******************************************************
 	/* Test  to remove
@@ -143,14 +143,13 @@ private:
 	double pointcloudMaxX_;
 	double pointcloudMaxTxy_;
 	double pointcloudMaxTxz_;
-	double noise_level_;
 
 	bool doResetParticles_;
 
 	std::string worldFrameId_;
 	std::string baseFrameId_;
 
-	std::vector<Particle> particles_;
+	std::vector<Particle> particles_ ;
 	geometry_msgs::PoseWithCovariance pose_;
 
 	pcl::PointCloud<pcl::PointXYZRGB>::Ptr last_perception_;
@@ -158,8 +157,8 @@ private:
 
 	float map_max_x_, map_min_x_, map_max_y_, map_min_y_;
 
-	std::default_random_engine generator_;
-	std::normal_distribution<float> distribution_;
+	//std::default_random_engine generator_;
+	//std::normal_distribution<float> distribution_;
 
 	tf::Transform last2odom_;
 	tf::Transform genNoise(const tf::Transform &base);
